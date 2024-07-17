@@ -1,7 +1,5 @@
-CXXFLAGS = -I/utils/eigen-3.4.0
-
 all:
-	@g++ -Wall homology.cpp -o target/homology
+	@g++ -std=c++20 -Wall homology.cpp -o target/homology
 	@./target/homology
 
 del:
