@@ -1,5 +1,3 @@
-#include <Eigen/Dense>
-#include "rapidcsv.h"
 #include <iostream>
 #include "homology.h"
 

@@ -7,9 +7,7 @@
 #include <array>
 #include <vector>
 
-// Pulling Orientations and Translation values to be used
-
-const rapidcsv::Document doc("/Users/aidansgarlato/Programing/C++_C/GLaDOS/src/calibrations.csv");
+const rapidcsv::Document doc("../../../src/calibrations.csv");
 
 const std::vector<double> ORIENTATION_1 = doc.GetColumn<double>("orientation1");
 const std::vector<double> TRANSLATION_1 = doc.GetColumn<double>("translation1");
