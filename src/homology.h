@@ -25,6 +25,8 @@ static Eigen::Matrix<double, 3, 4> make_camera_matrix(const std::vector<double> 
 
   Eigen::Matrix3d R = quaternion.toRotationMatrix();
 
+  std::cout << "\nRotation:\n" << R << std::endl;
+
   Eigen::Matrix4d H = Eigen::Matrix4d::Zero();
   H.block(0,0,3,3) = R;
 
@@ -64,18 +66,16 @@ void printArray(const std::array<T, N>& arr) {
 
 //Finds point in 3d space based on two camera matricies and two point in the cameras frames
 std::array<double, 3> find_pos_3d(const Eigen::Matrix<double, 3, 4> &C1, const Eigen::Matrix<double, 3, 4> &C2, const std::array<double, 2> p1, const std::array<double, 2> &p2){
-  Eigen::VectorXd rows[4] = {p1[0] * C1.row(2) - C1.row(0), p1[1] * C1.row(2) - C1.row(1), p2[0] * C1.row(2) - C2.row(0), p2[1] * C1.row(2) - C2.row(1)};
+  Eigen::Matrix<double, 6, 4> A;
+  A.block(0,0,3,4) = C1;
+  A.block(3,0,3,4) = C2;
 
-  Eigen::Matrix<double, 4, 4> A;
-  for(int i=0; i < 4; i++){
-    A.row(i) = rows[i].transpose();
-  }
+  Eigen::Vector<double, 6> r {p1[0], p1[1], 1.0, p2[0], p2[1], 1.0};
 
-  Eigen::JacobiSVD<Eigen::MatrixXd> svd(A, Eigen::ComputeThinU | Eigen::ComputeThinV);
-
-  Eigen::VectorXd proj_pos = svd.matrixV().col(3);
+  Eigen::Vector<double, 4> proj_pos = (A.transpose() * A).ldlt().solve(A.transpose() * r);
 
   std::array<double, 3> pos = {proj_pos(0)/proj_pos(3), proj_pos(1)/proj_pos(3), proj_pos(2)/proj_pos(3)};
+
   return pos;
 }
 
