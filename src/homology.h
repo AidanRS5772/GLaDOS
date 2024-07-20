@@ -5,6 +5,7 @@
 #include "rapidcsv.h"
 #include <iostream>
 #include <array>
+#include <cmath>
 #include <vector>
 
 const rapidcsv::Document doc("../../../src/calibrations.csv");
@@ -24,8 +25,6 @@ static Eigen::Matrix<double, 3, 4> make_camera_matrix(const std::vector<double> 
         Eigen::AngleAxisd(orientation[0]*(M_PI / 2), Eigen::Vector3d::UnitX());
 
   Eigen::Matrix3d R = quaternion.toRotationMatrix();
-
-  std::cout << "\nRotation:\n" << R << std::endl;
 
   Eigen::Matrix4d H = Eigen::Matrix4d::Zero();
   H.block(0,0,3,3) = R;
@@ -52,16 +51,17 @@ const Eigen::Matrix<double, 3, 4> CAMERA_2 = make_camera_matrix(ORIENTATION_2, T
 // Functions To be Used
 
 //Prints out Array
-template <typename T, std::size_t N>
-void printArray(const std::array<T, N>& arr) {
-    std::cout << "[ ";
+template<typename T, std::size_t N>
+std::ostream& operator<<(std::ostream& os, const std::array<T, N>& arr) {
+    os << "[";
     for (std::size_t i = 0; i < N; ++i) {
-        std::cout << arr[i];
-        if (i < N - 1) {
-            std::cout << ", ";
+        os << arr[i];
+        if (i != N - 1) {
+            os << ", ";
         }
     }
-    std::cout << " ]" << std::endl;
+    os << "]";
+    return os;
 }
 
 //Finds point in 3d space based on two camera matricies and two point in the cameras frames
@@ -77,6 +77,18 @@ std::array<double, 3> find_pos_3d(const Eigen::Matrix<double, 3, 4> &C1, const E
   std::array<double, 3> pos = {proj_pos(0)/proj_pos(3), proj_pos(1)/proj_pos(3), proj_pos(2)/proj_pos(3)};
 
   return pos;
+}
+
+bool check_pos_3d(const Eigen::Matrix<double, 3, 4> &C1, const Eigen::Matrix<double, 3, 4> &C2, const std::array<double, 3> &pos_3d, const std::array<double, 2> &p1, const std::array<double, 2> &p2){
+  Eigen::Vector<double, 4> proj_pos {pos_3d[0], pos_3d[1], pos_3d[2], 1.0};
+
+  Eigen::Vector<double, 3> proj_p1 = C1 * proj_pos;
+  Eigen::Vector<double, 3> proj_p2 = C2 * proj_pos;
+
+  std::array<double, 2> new_p1 = {proj_p1[0]/proj_p1[2], proj_p1[1]/proj_p1[2]};
+  std::array<double, 2> new_p2 = {proj_p2[0]/proj_p2[2], proj_p2[1]/proj_p2[2]};
+
+  return (new_p1 == p1) && (new_p2 == p2);
 }
 
 #endif
