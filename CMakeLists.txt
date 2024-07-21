@@ -3,9 +3,12 @@ project(GLaDOS)
 
 find_package(Eigen3 REQUIRED)
 find_package(rapidcsv REQUIRED)
+find_package(Boost REQUIRED)
+find_package(OpenCV REQUIRED)
 
 add_executable(${PROJECT_NAME} src/main.cpp)
 
 target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
 target_link_libraries(${PROJECT_NAME} rapidcsv::rapidcsv)
-
+target_link_libraries(${PROJECT_NAME} boost::boost)
+target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS})
