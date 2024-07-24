@@ -1,6 +1,6 @@
 PROJECT STILL UNDER CONSTRUCTION
 
-Setup Guide:
+Setup Guide For Client:
 
 REQUIRMENTS:
 
@@ -55,3 +55,34 @@ Run the executable with...
 ```
 
 Any time you want to change the build system you need rerun steps 2 through 4, and anytime you want to add or remove a package from the dependencies you need rerun all the steps. It would be benificial to familiarize yourself with how to use Conan and Cmake as well.
+
+Setup Guide for Server:
+
+REQUIRMENTS:
+
+  - Have latest python interpreter installed
+  - Have latest pip installed
+
+Step 1:
+
+Create the vitual enviorment.
+```
+(Path to Python interpreter) -m venv myenv
+source myenv/bin/activate
+```
+You must give your own path to the python interpreter executable you are using. For me on OSX this is "/opt/homebrew/opt/python@3.12/bin/python3.12" but this may be different for you.
+
+Step 2:
+
+Download the proper packages.
+```
+pip install numpy
+pip install opencv-python
+```
+
+Step 3:
+Run server code.
+```
+cd src
+python py_server.py
+```
