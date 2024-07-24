@@ -67,10 +67,9 @@ Step 1:
 
 Create the vitual enviorment.
 ```
-(Path to Python interpreter) -m venv myenv
+python -m venv myenv
 source myenv/bin/activate
 ```
-You must give your own path to the python interpreter executable you are using. For me on OSX this is "/opt/homebrew/opt/python@3.12/bin/python3.12" but this may be different for you.
 
 Step 2:
 
