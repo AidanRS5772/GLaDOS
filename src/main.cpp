@@ -4,6 +4,22 @@
 
 using boost::asio::ip::tcp;
 
+void test_display(){
+    cv::Mat image = cv::imread("/home/aidan/Programming/GLaDOS/src/test.jpg");
+    if (image.empty()) {
+        std::cerr << "Could not open or find the image!" << std::endl;
+    }
+
+    cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE);
+    cv::imshow("Display window", image);
+    cv::waitKey(0); // Wait for a keystroke in the window
+}
+
+void opencv_build_info(){
+    std::cout << "OpenCV Version: " << CV_VERSION << std::endl;
+    std::cout << "OpenCV Build Info: " << cv::getBuildInformation() << std::endl;
+}
+
 void process_data_into_frame(tcp::socket& socket) {
     // Receive frame size
     std::vector<uint8_t> frame_size_buf(4);
@@ -41,51 +57,36 @@ void process_data_into_frame(tcp::socket& socket) {
 }
 
 int main() {
-    try {
-        boost::asio::io_context io_context;
-        tcp::socket socket(io_context);
-        tcp::resolver resolver(io_context);
-        boost::asio::connect(socket, resolver.resolve("10.0.0.235", "12345"));
+    //Web socket
+    // try {
+    //     boost::asio::io_context io_context;
+    //     tcp::socket socket(io_context);
+    //     tcp::resolver resolver(io_context);
+    //     boost::asio::connect(socket, resolver.resolve("10.0.0.235", "12345"));
 
-        std::cout << "Connected to server" << std::endl;
+    //     std::cout << "Connected to server" << std::endl;
 
-        while (true) {
-            try {
-                process_data_into_frame(socket);
-            } catch (const std::runtime_error& e) {
-                std::cerr << e.what() << std::endl;
-                break;
-            }
-        }
+    //     while (true) {
+    //         try {
+    //             process_data_into_frame(socket);
+    //         } catch (const std::runtime_error& e) {
+    //             std::cerr << e.what() << std::endl;
+    //             break;
+    //         }
+    //     }
 
-        cv::destroyAllWindows();
-        socket.close();
-    } catch (const std::exception& e) {
-        std::cerr << "Exception: " << e.what() << std::endl;
-    }
+    //     cv::destroyAllWindows();
+    //     socket.close();
+    // } catch (const std::exception& e) {
+    //     std::cerr << "Exception: " << e.what() << std::endl;
+    // }
 
-    return 0;
-}
+    // Test Display
+    test_display();
 
-Test Display
-int main() {
-    cv::Mat image = cv::imread("/home/aidan/Programming/GLaDOS/src/test.jpg");
-    if (image.empty()) {
-        std::cerr << "Could not open or find the image!" << std::endl;
-        return -1;
-    }
-
-    cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE);
-    cv::imshow("Display window", image);
-    cv::waitKey(0); // Wait for a keystroke in the window
+    //OpenCV Build Info
+    // opencv_build_info();
 
     return 0;
 }
-
-// Testing Version of OpenCV
-// int main() {
-//     std::cout << "OpenCV Version: " << CV_VERSION << std::endl;
-//     std::cout << "OpenCV Build Info: " << cv::getBuildInformation() << std::endl;
-//     return 0;
-// }
 
