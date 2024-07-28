@@ -1,27 +1,36 @@
-import numpy
 import cv2
 import socket
 import threading
 
 def handle_client(client_socket, addr):
+    # Open video capture
     cap = cv2.VideoCapture(0)
+
+    # Create a VideoWriter object with H.264 codec
+    fourcc = cv2.VideoWriter_fourcc(*'H264')  # or use 'X264' or other codec if available
+    width, height = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    video_writer = cv2.VideoWriter('stream.mp4', fourcc, fps, (width, height))
 
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
 
-        _, img_encoded = cv2.imencode('.jpg', frame)
-        img_bytes = img_encoded.tobytes()
+        # Write the frame to the video file (H.264 encoded)
+        video_writer.write(frame)
 
-        client_socket.sendall(len(img_bytes).to_bytes(4, byteorder='big'))
-        client_socket.sendall(img_bytes)
+        # Read the encoded frame
+        with open('stream.mp4', 'rb') as f:
+            video_bytes = f.read()
+
+        client_socket.sendall(len(video_bytes).to_bytes(4, byteorder='big'))
+        client_socket.sendall(video_bytes)
 
     cap.release()
-
+    video_writer.release()
     print(f"Video has been streamed to {addr}")
     client_socket.sendall(b"END_STREAM")
-
     client_socket.close()
 
 
