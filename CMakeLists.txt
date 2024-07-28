@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.15)
 project(GLaDOS)
 
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_compile_options(-Wextra -Wpedantic -Wall)
+
 find_package(Eigen3 REQUIRED)
 find_package(rapidcsv REQUIRED)
 find_package(Boost REQUIRED)

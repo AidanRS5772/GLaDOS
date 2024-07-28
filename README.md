@@ -10,7 +10,13 @@ REQUIRMENTS:
     ```
     conan profile detect --force
     ```
-  - Be proficent in C++, CMake, and Conan2
+    Then you are going to want to add the following to the bottom of the .conan2/profiles/default file with your perfered text editor.
+    ```
+    [conf]
+    tools.system.package_manager:mode=install
+    tools.system.package_manager:sudo = True
+    ```
+  - Be proficent in C++, CMake, Conan2, and Python
 
 Step 1:
 
@@ -37,7 +43,7 @@ In the top level build directory run the following Cmake command.
 cmake .. --preset conan-release
 ```
 
-This will produce the proper Makefile.
+This will produce the proper Makefile. This comand will fail if you have any cmake version less then 3.24.
 
 Step 3:
 
@@ -54,7 +60,7 @@ Run the executable with...
 ./GLaDOS
 ```
 
-Any time you want to change the build system you need rerun steps 2 through 4, and anytime you want to add or remove a package from the dependencies you need rerun all the steps. It would be benificial to familiarize yourself with how to use Conan and Cmake as well.
+Any time you want to change the build system you need rerun steps 2 through 4, and anytime you want to add or remove a package from the dependencies you need rerun all the steps. It would be benificial to familiarize yourself with how to use Conan and Cmake as well. If you do your code editing in vscode you may want to add "~/.conan2/p/**" to the "includePath" section of the "c_cpp_properties.json" file to have intelisense be able to see the packages downloaded from conan.
 
 Setup Guide for Server:
 
@@ -75,8 +81,7 @@ Step 2:
 
 Download the proper packages.
 ```
-pip install numpy
-pip install opencv-python
+pip install numpy opencv-python
 ```
 
 Step 3:

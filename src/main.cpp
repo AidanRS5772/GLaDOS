@@ -29,10 +29,14 @@ void process_data_into_frame(tcp::socket& socket) {
         return;
     }
 
-    // Display frame
-    cv::imshow("Client Video Stream", frame);
-    if (cv::waitKey(1) == 'q') {
-        throw std::runtime_error("Client closed");
+    // Display frame with error handling
+    try {
+        cv::imshow("Client Video Stream", frame);
+        if (cv::waitKey(1) == 'q') {
+            throw std::runtime_error("Client closed");
+        }
+    } catch (const cv::Exception& e) {
+        std::cerr << "OpenCV Error: " << e.what() << std::endl;
     }
 }
 
@@ -41,7 +45,7 @@ int main() {
         boost::asio::io_context io_context;
         tcp::socket socket(io_context);
         tcp::resolver resolver(io_context);
-        boost::asio::connect(socket, resolver.resolve("11.22.33.44", "12345"));
+        boost::asio::connect(socket, resolver.resolve("10.0.0.235", "12345"));
 
         std::cout << "Connected to server" << std::endl;
 
@@ -63,6 +67,25 @@ int main() {
     return 0;
 }
 
+Test Display
+int main() {
+    cv::Mat image = cv::imread("/home/aidan/Programming/GLaDOS/src/test.jpg");
+    if (image.empty()) {
+        std::cerr << "Could not open or find the image!" << std::endl;
+        return -1;
+    }
 
+    cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE);
+    cv::imshow("Display window", image);
+    cv::waitKey(0); // Wait for a keystroke in the window
 
+    return 0;
+}
+
+// Testing Version of OpenCV
+// int main() {
+//     std::cout << "OpenCV Version: " << CV_VERSION << std::endl;
+//     std::cout << "OpenCV Build Info: " << cv::getBuildInformation() << std::endl;
+//     return 0;
+// }
 
