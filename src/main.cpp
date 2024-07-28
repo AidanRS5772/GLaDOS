@@ -1,4 +1,5 @@
 #include <iostream>
+#include <vector>
 #include <opencv2/opencv.hpp>
 #include <boost/asio.hpp>
 
@@ -22,52 +23,28 @@ void opencv_build_info(){
 }
 
 cv::Mat process_data_into_frame(boost::asio::ip::tcp::socket& socket) {
-    // Buffer to store incoming data
-    vector<uint8_t> buffer;
+    vector<uint8_t> frame_size_buf(4);
+    boost::asio::read(socket, boost::asio::buffer(frame_size_buf));
+    unsigned long frame_size = (frame_size_buf[0] << 24) + (frame_size_buf[1] << 16) +
+                               (frame_size_buf[2] << 8) + frame_size_buf[3];
 
-    // Read until "END_STREAM" is received
-    while (true) {
-        vector<uint8_t> frame_size_buf(4);
-        boost::asio::read(socket, boost::asio::buffer(frame_size_buf));
-
-        unsigned long frame_size = (frame_size_buf[0] << 24) + (frame_size_buf[1] << 16) +
-                                   (frame_size_buf[2] << 8) + frame_size_buf[3];
-
-        if (frame_size == 0) {
-            throw runtime_error("Stream Ended on Server");
-        }
-
-        vector<uint8_t> img_bytes(frame_size);
-        size_t bytes_received = 0;
-        while (bytes_received < frame_size) {
-            bytes_received += boost::asio::read(socket, boost::asio::buffer(img_bytes.data() + bytes_received, frame_size - bytes_received));
-        }
-
-        // Append received data to buffer
-        buffer.insert(buffer.end(), img_bytes.begin(), img_bytes.end());
-
-        // Check if the end of stream is reached
-        if (buffer.size() > 8 && 
-            buffer[buffer.size() - 8] == 'E' && 
-            buffer[buffer.size() - 7] == 'N' &&
-            buffer[buffer.size() - 6] == 'D' &&
-            buffer[buffer.size() - 5] == '_' &&
-            buffer[buffer.size() - 4] == 'S' &&
-            buffer[buffer.size() - 3] == 'T' &&
-            buffer[buffer.size() - 2] == 'R' &&
-            buffer[buffer.size() - 1] == 'E') {
-            buffer.resize(buffer.size() - 8); // Remove "END_STREAM"
-            break;
-        }
+    if (frame_size == 0) {
+        throw runtime_error("Stream Ended on Server");
     }
 
-    // Create a cv::Mat from the buffer
-    cv::Mat video_frame = cv::imdecode(buffer, cv::IMREAD_COLOR);
-    if (video_frame.empty()) {
+    vector<uint8_t> img_bytes(frame_size);
+    size_t bytes_received = 0;
+    while (bytes_received < frame_size) {
+        bytes_received += boost::asio::read(socket, boost::asio::buffer(img_bytes.data() + bytes_received, frame_size - bytes_received));
+    }
+
+    // Convert bytes to cv::Mat
+    cv::Mat frame = cv::imdecode(img_bytes, cv::IMREAD_COLOR);
+    if (frame.empty()) {
         throw runtime_error("Failed to decode image");
     }
 
-    return video_frame;
+    return frame;
 }
 
 int main() {
