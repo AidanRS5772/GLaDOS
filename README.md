@@ -73,8 +73,8 @@ Step 1:
 
 Create the vitual enviorment.
 ```
-python -m venv myenv
-source myenv/bin/activate
+python -m venv env
+source env/bin/activate
 ```
 
 Step 2:

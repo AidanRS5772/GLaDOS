@@ -5,23 +5,7 @@
 using boost::asio::ip::tcp;
 using namespace std;
 
-void test_display(){
-    cv::Mat image = cv::imread("/home/aidan/Programming/GLaDOS/src/test.jpg");
-    if (image.empty()) {
-        cerr << "Could not open or find the image!" << endl;
-    }
-
-    cv::namedWindow("Display window", cv::WINDOW_AUTOSIZE);
-    cv::imshow("Display window", image);
-    cv::waitKey(0); // Wait for a keystroke in the window
-}
-
-void opencv_build_info(){
-    cout << "OpenCV Version: " << CV_VERSION << endl;
-    cout << "OpenCV Build Info: " << cv::getBuildInformation() << endl;
-}
-
-cv::Mat process_data_into_frame(boost::asio::ip::tcp::socket& socket) {
+cv::Mat process_data_into_frame(tcp::socket& socket) {
     // Receive frame size
     vector<uint8_t> frame_size_buf(4);
     boost::asio::read(socket, boost::asio::buffer(frame_size_buf));
@@ -80,12 +64,6 @@ int main() {
     } catch (const std::exception& e) {
         cerr << e.what() << endl;
     }
-
-    // Test Display
-    // test_display();
-
-    //OpenCV Build Info
-    // opencv_build_info();
 
     return 0;
 }

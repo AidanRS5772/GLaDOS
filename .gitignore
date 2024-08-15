@@ -2,4 +2,4 @@ CMakeUserPresets.json
 build
 .vscode
 .DS_Store
-myenv
+env
