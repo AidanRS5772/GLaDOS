@@ -27,7 +27,7 @@ int main() {
         boost::asio::io_context io_context;
         tcp::socket socket(io_context);
         tcp::resolver resolver(io_context);
-        boost::asio::connect(socket, resolver.resolve("127.0.0.1", "12345"));
+        boost::asio::connect(socket, resolver.resolve("10.0.0.235", "12345"));
         cout << "Connected to server" << std::endl;
 
         while (true) {
