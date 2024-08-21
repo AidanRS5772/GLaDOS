@@ -22,6 +22,11 @@ cv::Mat process_data_to_frame(tcp::socket& socket) {
     return frame;
 }
 
+void send_acknowledgment(tcp::socket& socket) {
+    const std::string ack_msg = "ACK";
+    boost::asio::write(socket, boost::asio::buffer(ack_msg));
+}
+
 int main() {
     cv::Ptr<cv::BackgroundSubtractorKNN> knn = cv::createBackgroundSubtractorKNN(1, 400, false);
 
@@ -41,6 +46,9 @@ int main() {
 
                 cv::imshow("Video Stream", frame);
                 cv::imshow("Background Subtraction", sub_bckgrnd_frame);
+
+                send_acknowledgment(socket);
+                
                 if (cv::waitKey(1) == 'q') {
                     throw std::runtime_error("Stream Ended by User on Client");
                 }

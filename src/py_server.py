@@ -19,6 +19,12 @@ def handle_client(client_socket):
             msg = struct.pack("Q", len(jpg_data)) + jpg_data.tobytes()
             client_socket.sendall(msg)
 
+            # Wait for acknowledgment from the client
+            ack = client_socket.recv(3)  # Expecting "ACK"
+            if ack.decode('utf-8') != "ACK":
+                print("Error: Did not receive ACK from client")
+                break
+
     cap.release()
     client_socket.sendall(b"END_STREAM")
     client_socket.close()
