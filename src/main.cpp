@@ -12,18 +12,11 @@ void send_hello_message(udp::socket& socket, udp::endpoint& server_endpoint) {
     socket.send_to(boost::asio::buffer(hello_message), server_endpoint);
 }
 
-#include <iostream>
-#include <opencv2/opencv.hpp>
-#include <boost/asio.hpp>
-#include <vector>
-#include <map>
-
-using boost::asio::ip::udp;
-using namespace std;
-
 cv::Mat process_data_to_frame(udp::socket& socket, udp::endpoint& sender_endpoint) {
     std::map<int, std::vector<uint8_t>> chunks;
     int total_size = 0;
+    int max_chunk_index = -1;
+
     while (true) {
         std::vector<uint8_t> buffer(65507);
         udp::endpoint endpoint;
@@ -31,8 +24,11 @@ cv::Mat process_data_to_frame(udp::socket& socket, udp::endpoint& sender_endpoin
 
         if (len > 4) {  // Adjusted to read "I" format (4 bytes)
             int chunk_index = ntohl(*(uint32_t*)&buffer[0]);  // Adjusted for "I" format
+            cout << "Received chunk with index: " << chunk_index << " size: " << (len - 4) << " bytes" << endl;
+
             chunks[chunk_index] = std::vector<uint8_t>(buffer.begin() + 4, buffer.begin() + len);
             total_size += len - 4;
+            max_chunk_index = std::max(max_chunk_index, chunk_index);
 
             // Assuming that the chunks are sent in order and the last chunk is smaller than MAX_UDP_SIZE
             if (len < 65507) {
@@ -43,8 +39,15 @@ cv::Mat process_data_to_frame(udp::socket& socket, udp::endpoint& sender_endpoin
 
     std::vector<uint8_t> jpg_data;
     jpg_data.reserve(total_size);
-    for (const auto& chunk : chunks) {
-        jpg_data.insert(jpg_data.end(), chunk.second.begin(), chunk.second.end());
+
+    // Ensure chunks are inserted in the correct order
+    for (int i = 0; i <= max_chunk_index; ++i) {
+        if (chunks.find(i) != chunks.end()) {
+            jpg_data.insert(jpg_data.end(), chunks[i].begin(), chunks[i].end());
+        } else {
+            cerr << "Missing chunk with index: " << i << endl;
+            throw runtime_error("Failed to receive all chunks.");
+        }
     }
 
     // Decode the received JPG image to an OpenCV Mat

@@ -2,7 +2,7 @@ import cv2
 import socket
 import struct
 
-MAX_PAYLOAD_SIZE = 65495  # Adjusted for header size
+MAX_PAYLOAD_SIZE = 1500  # Adjusted for header size
 
 def serve():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
