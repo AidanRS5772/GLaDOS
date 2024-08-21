@@ -10,8 +10,9 @@ def serve():
 
     print("Server is listening...")
 
+    # Wait for the client to send the first message
     print("Waiting for the client to send a hello message...")
-    message, client_address = server_socket.recvfrom(1024)
+    message, client_address = server_socket.recvfrom(1024)  # Buffer size is 1024 bytes
     print(f"Received hello message from {client_address}")
 
     cap = cv2.VideoCapture(0)

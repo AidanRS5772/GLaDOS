@@ -7,6 +7,11 @@
 using boost::asio::ip::udp;
 using namespace std;
 
+void send_hello_message(udp::socket& socket, udp::endpoint& server_endpoint) {
+    std::string hello_message = "HELLO";
+    socket.send_to(boost::asio::buffer(hello_message), server_endpoint);
+}
+
 cv::Mat process_data_to_frame(udp::socket& socket, udp::endpoint& sender_endpoint) {
     std::map<int, std::vector<uint8_t>> chunks;
     int total_size = 0;
@@ -45,7 +50,12 @@ cv::Mat process_data_to_frame(udp::socket& socket, udp::endpoint& sender_endpoin
 int main() {
     try {
         boost::asio::io_context io_context;
-        udp::socket socket(io_context, udp::endpoint(udp::v4(), 12345));
+        udp::socket socket(io_context, udp::endpoint(udp::v4(), 0));  // 0 lets OS choose a port
+
+        udp::endpoint server_endpoint(boost::asio::ip::address::from_string("10.0.0.235"), 12345);
+
+        // Send a hello message to the server to register this client
+        send_hello_message(socket, server_endpoint);
 
         udp::endpoint sender_endpoint;
         std::cout << "Waiting for server to send data..." << std::endl;
