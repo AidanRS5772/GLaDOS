@@ -2,7 +2,7 @@ import cv2
 import socket
 import struct
 
-MAX_UDP_SIZE = 65507  # Maximum UDP packet size (65,507 bytes)
+MAX_PAYLOAD_SIZE = 65495  # Adjusted for header size
 
 def serve():
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -28,14 +28,15 @@ def serve():
         if ret:
             jpg_data = jpg_data.tobytes()
 
-            # Split the JPG data into chunks
-            for i in range(0, len(jpg_data), MAX_UDP_SIZE):
-                chunk = jpg_data[i:i + MAX_UDP_SIZE]
-                # Send each chunk to the client
-                server_socket.sendto(struct.pack("H", i) + chunk, client_address)
+            # Split the JPG data into chunks that are less than MAX_PAYLOAD_SIZE
+            for i in range(0, len(jpg_data), MAX_PAYLOAD_SIZE):
+                chunk = jpg_data[i:i + MAX_PAYLOAD_SIZE]
+                # Send each chunk to the client with its sequence number (use "I" for larger index values)
+                server_socket.sendto(struct.pack("I", i) + chunk, client_address)
 
     cap.release()
     server_socket.close()
 
 if __name__ == "__main__":
     serve()
+
