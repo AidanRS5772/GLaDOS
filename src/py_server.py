@@ -2,8 +2,6 @@ import cv2
 import socket
 import struct
 
-BUFFER_SZ = 10000
-
 def handle_client(client_socket):
     # Open video capture from the webcam
     cap = cv2.VideoCapture(0)
@@ -35,7 +33,7 @@ def serve():
     while True:
         client_socket, addr = server_socket.accept()
         print(f"Connection from {addr} has been established.")
-        handle_client(client_socket, addr)
+        handle_client(client_socket)
 
 if __name__ == "__main__":
     serve()

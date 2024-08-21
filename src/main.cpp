@@ -23,6 +23,8 @@ cv::Mat process_data_to_frame(tcp::socket& socket) {
 }
 
 int main() {
+    cv::Ptr<cv::BackgroundSubtractorKNN> knn = cv::createBackgroundSubtractorKNN(1, 400, false);
+
     try {
         boost::asio::io_context io_context;
         tcp::socket socket(io_context);
@@ -30,11 +32,15 @@ int main() {
         boost::asio::connect(socket, resolver.resolve("10.0.0.235", "12345"));
         cout << "Connected to server" << std::endl;
 
-
         while (true) {
             try {
                 cv::Mat frame = process_data_to_frame(socket);
+
+                cv::Mat sub_bckgrnd_frame;
+                knn->apply(frame, sub_bckgrnd_frame);
+
                 cv::imshow("Video Stream", frame);
+                cv::imshow("Background Subtraction", sub_bckgrnd_frame);
                 if (cv::waitKey(1) == 'q') {
                     throw std::runtime_error("Stream Ended by User on Client");
                 }
