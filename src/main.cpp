@@ -6,8 +6,6 @@
 using boost::asio::ip::tcp;
 using namespace std;
 
-const int BUFFER_SZ = 10000;
-
 cv::Mat process_data_to_frame(tcp::socket& socket) {
     uint64_t frame_size;
     boost::asio::read(socket, boost::asio::buffer(&frame_size, sizeof(frame_size)));
@@ -35,12 +33,6 @@ int main() {
         // Set TCP_NODELAY to disable Nagle's algorithm
         boost::asio::ip::tcp::no_delay option(true);
         socket.set_option(option);
-
-        boost::asio::socket_base::receive_buffer_size recv_buffer_option(BUFFER_SZ);
-        socket.set_option(recv_buffer_option);
-
-        boost::asio::socket_base::send_buffer_size send_buffer_option(BUFFER_SZ);
-        socket.set_option(send_buffer_option);
 
 
         while (true) {

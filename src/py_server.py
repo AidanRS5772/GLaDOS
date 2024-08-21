@@ -6,8 +6,6 @@ BUFFER_SZ = 10000
 
 def handle_client(client_socket):
     client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, BUFFER_SZ)  # Receive buffer size
-    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, BUFFER_SZ)  # Send buffer size
 
     # Open video capture from the webcam
     cap = cv2.VideoCapture(0)
