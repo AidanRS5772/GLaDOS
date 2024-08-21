@@ -30,6 +30,17 @@ int main() {
         boost::asio::connect(socket, resolver.resolve("10.0.0.235", "12345"));
         cout << "Connected to server" << std::endl;
 
+        // Set TCP_NODELAY to disable Nagle's algorithm
+        boost::asio::ip::tcp::no_delay option(true);
+        socket.set_option(option);
+
+        boost::asio::socket_base::receive_buffer_size recv_buffer_option(4096);
+        socket.set_option(recv_buffer_option);
+
+        boost::asio::socket_base::send_buffer_size send_buffer_option(4096);
+        socket.set_option(send_buffer_option);
+
+
         while (true) {
             try {
                 cv::Mat frame = process_data_to_frame(socket);

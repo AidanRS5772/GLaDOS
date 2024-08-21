@@ -2,7 +2,11 @@ import cv2
 import socket
 import struct
 
-def handle_client(client_socket, addr):
+def handle_client(client_socket):
+    client_socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 4096)  # Receive buffer size
+    client_socket.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 4096)  # Send buffer size
+
     # Open video capture from the webcam
     cap = cv2.VideoCapture(0)
 
