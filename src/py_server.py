@@ -1,6 +1,8 @@
 import cv2
 import socket
 import threading
+import msgpack
+import struct
 
 def handle_client(client_socket, addr):
     cap = cv2.VideoCapture(0)
@@ -9,12 +11,10 @@ def handle_client(client_socket, addr):
         ret, frame = cap.read()
         if not ret:
             break
-
-        _, img_encoded = cv2.imencode('.jpg', frame)
-        img_bytes = img_encoded.tobytes()
-
-        client_socket.sendall(len(img_bytes).to_bytes(4, byteorder='big'))
-        client_socket.sendall(img_bytes)
+        data = frame.tolist()
+        packed_data = msgpack.packb(data)
+        msg = struct.pack("Q", len(packed_data))+packed_data
+        client_socket.sendall(msg)
 
     cap.release()
 
