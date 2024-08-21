@@ -12,7 +12,7 @@ def handle_client(client_socket):
             break
 
         # Encode the frame as a JPG image
-        ret, jpg_data = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 100])
+        ret, jpg_data = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
 
         if ret:
             # Serialize the length of the encoded JPG and the image data
