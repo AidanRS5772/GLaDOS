@@ -49,13 +49,15 @@ array<int, 2> find_center_of_max_contour(const vector<std::vector<cv::Point>> &c
 
     array<int, 2> px_cords = {Laser_X, Laser_Y};
 
-    cv::circle(frame, cv::Point(Laser_X, Laser_Y), 15, cv::Scalar(0, 0, 255), -1);
+    cv::circle(frame, cv::Point(Laser_X, Laser_Y), 10, cv::Scalar(0, 0, 255), -1);
     return px_cords;
 }
 
 void recognize_face(atomic<bool> &face_recog_done, atomic<bool> &face_recog){
     face_recog_done.store(false);
-    this_thread::sleep_for(chrono::seconds(2));
+
+    this_thread::sleep_for(chrono::seconds(2));//Simulated Find Face
+
     cout << "Finished Facial Recognition" << endl;
     face_recog_done.store(true);
     face_recog.store(true);
@@ -67,7 +69,7 @@ const string PORT = "12345";
 const int PRE_THRESH = 400; //Threshold for KNN background subtractor
 const int FRAME_HIST = 100; //Frame History of KNN background subtractor
 const int L_KERNAL_SZ = 7; //Size of convolution kernal for large morphology processing
-const int S_KERNAL_SZ = 7; //Size of convolution kernal for small morphology processing
+const int S_KERNAL_SZ = 3; //Size of convolution kernal for small morphology processing
 const int POST_THRESH = 50; //Gray scale limit for post threshholding of mask
 
 
@@ -126,9 +128,11 @@ int main() {
                     face_recog.store(false);
                 }
 
+                // show frames
                 cv::imshow("Video Stream", frame);
-                cv::imshow("Background Subtraction", fg_mask);
-                cv::imshow("Background Subtraction And Clean", clean_fg_mask);
+                cv::imshow("Mask", fg_mask);
+                cv::imshow("Mask Clean", clean_fg_mask);
+                
 
                 send_acknowledgment(socket); // send message that processing is done
 
