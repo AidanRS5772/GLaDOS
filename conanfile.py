@@ -12,9 +12,10 @@ class MyProject(ConanFile):
         self.requires("rapidcsv/8.83")
 
     def configure(self):
-        self.options["opencv/*"].with_qt = False
-        self.options["opencv/*"].with_gtk = True
-        self.options["opencv/*"].with_wayland = False
+        self.options["opencv"].contrib = True
+        self.options["opencv"].with_qt = False
+        self.options["opencv"].with_gtk = True
+        self.options["opencv"].with_wayland = False
         
 
     def build(self):
