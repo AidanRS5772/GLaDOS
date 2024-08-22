@@ -137,10 +137,10 @@ int main() {
                 send_acknowledgment(socket); // send message that processing is done
 
                 if (cv::waitKey(1) == 'q') {
-                    throw std::runtime_error("Stream Ended by User on Client");
+                    throw runtime_error("Stream Ended by User on Client");
                 }
             } catch (const std::exception &e) {
-                std::cerr << e.what() << std::endl;
+                cerr << e.what() << endl;
                 break;
             }
         }
