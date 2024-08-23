@@ -42,7 +42,7 @@ def check_for_shutdown(stop_event):
             stop_event.set()
             break
 
-if __name__ == '__main__':
+async def main():
     stop_event = threading.Event()
     
     # Start the shutdown check in a separate thread
@@ -50,9 +50,12 @@ if __name__ == '__main__':
     input_thread.start()
 
     # Run the asyncio event loop to send frames
-    asyncio.get_event_loop().run_until_complete(send_frames('ws://10.0.0.231:8080', stop_event))
+    await send_frames('ws://10.0.0.231:8080', stop_event)
 
     # Ensure the input thread completes
     input_thread.join()
 
     print("Client has shut down.")
+
+if __name__ == '__main__':
+    asyncio.run(main())
