@@ -27,20 +27,23 @@ class session : public std::enable_shared_from_this<session> {
         explicit session(boost::asio::ip::tcp::socket &&socket): ws_(std::move(socket)) {
             boost::uuids::uuid uuid = boost::uuids::random_generator()();
             client_id_ = boost::uuids::to_string(uuid);
+
+            // Set TCP_NODELAY on the underlying TCP socket
+            boost::asio::ip::tcp::no_delay option(true);
+            ws_.next_layer().socket().set_option(option);
         }
 
         void run() {
             ws_.set_option(boost::beast::websocket::stream_base::timeout::suggested(boost::beast::role_type::server));
-            auto self = shared_from_this();  // Capture the shared_ptr to this session
+            auto self = shared_from_this();
             ws_.async_accept(boost::beast::bind_front_handler(&session::on_accept, self));
         }
 
         void handle_close(const std::string& reason) {
             cout << reason << client_id_ << endl;
 
-            // Ensure resources are cleaned up after the connection is closed
             cv::destroyWindow(client_id_);
-            cv::waitKey(1);  // Ensure the window is closed properly
+            cv::waitKey(1);  // Neded to close window
 
             ws_.next_layer().close();
         }
@@ -56,36 +59,35 @@ class session : public std::enable_shared_from_this<session> {
             do_read();
         }
 
+
+        // Forms recursive loop with on_read()
         void do_read() {
-            // Capture the shared_ptr to this session to keep it alive
             auto self = shared_from_this();
 
             ws_.async_read(buffer_, [self](boost::beast::error_code ec, size_t bytes_transferred) {
-                self->on_read(ec, bytes_transferred);  // Forward the call to on_read
+                self->on_read(ec, bytes_transferred);
             });
         }
 
+        // processes raw binary into cv::Mat
         cv::Mat process_data_to_frame(boost::beast::flat_buffer &buffer){
-            // Extract the binary data from the buffer
             auto data = boost::asio::buffer_cast<const uint8_t*>(buffer.data());
             size_t data_size = buffer.size();
 
-            // Copy data to a vector to pass it to OpenCV
             vector<uint8_t> frame_data(data, data + data_size);
 
-            // Decode the received data to an OpenCV Mat
             cv::Mat frame = cv::imdecode(frame_data, cv::IMREAD_COLOR);
             
             if (frame.empty()) {
                 throw runtime_error("Failed to decode the frame.");
             }
 
-            // Clear the buffer after processing
             buffer.consume(buffer.size());
 
             return frame;
         }
 
+        // Main event function this is where the action happens
         void on_read(boost::beast::error_code ec, std::size_t bytes_transferred) {
             boost::ignore_unused(bytes_transferred);
 
@@ -116,24 +118,37 @@ class session : public std::enable_shared_from_this<session> {
                 }
             }
 
-            // Continue reading data from the client
+            // Continue to next frame
             do_read();
         }
 
         void close_connection() {
-            cout << "Starting Server Close of Client: " << client_id_ << endl;
+            cout << "Sending stop message to client: " << client_id_ << endl;
 
+            // Step 1: Send the stop message
+            ws_.text(true);  // Ensure we're sending a text message
             auto self = shared_from_this();
-            ws_.async_close(boost::beast::websocket::close_code::normal,
-                [self](boost::beast::error_code close_ec) {
-                    if (close_ec) {
-                        cerr << "Close error: " << close_ec.message() << endl;
-                    } else {
-                        cout << "Server closed Client with Id: " << self->client_id_ << endl;
-                    }
-                    self->handle_close("Clean up after async_close: ");
-                });
+            ws_.async_write(boost::asio::buffer("STOP"), [self](boost::beast::error_code ec, std::size_t) {
+                if (ec) {
+                    cerr << "Error sending stop message: " << ec.message() << endl;
+                    return;
+                }
+
+                cout << "Stop message sent, now closing connection for client: " << self->client_id_ << endl;
+
+                // Step 2: Initiate WebSocket close after sending the stop message
+                self->ws_.async_close(boost::beast::websocket::close_code::normal,
+                    [self](boost::beast::error_code close_ec) {
+                        if (close_ec) {
+                            cerr << "Close error: " << close_ec.message() << endl;
+                        } else {
+                            cout << "Server closed Client with Id: " << self->client_id_ << endl;
+                        }
+                        self->handle_close("Clean up after async_close: ");
+                    });
+            });
         }
+
 };
 
 class listener : public std::enable_shared_from_this<listener> {
