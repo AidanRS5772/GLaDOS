@@ -24,7 +24,7 @@ class session : public std::enable_shared_from_this<session> {
     string client_id_;
 
     public:
-        explicit session(boost::asio::ip::tcp::socket &&socket): ws_(move(socket)) {
+        explicit session(boost::asio::ip::tcp::socket &&socket): ws_(std::move(socket)) {
             boost::uuids::uuid uuid = boost::uuids::random_generator()();
             client_id_ = boost::uuids::to_string(uuid);
         }
