@@ -11,7 +11,7 @@ find_package(rapidcsv REQUIRED)
 find_package(Boost REQUIRED)
 find_package(OpenCV REQUIRED)
 
-add_executable(${PROJECT_NAME} new_src/server.cpp)
+add_executable(${PROJECT_NAME} src/server.cpp)
 
 target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
 target_link_libraries(${PROJECT_NAME} rapidcsv::rapidcsv)
