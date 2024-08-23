@@ -41,8 +41,8 @@ if __name__ == '__main__':
     input_thread = threading.Thread(target=check_for_shutdown, args=(stop_event,))
     input_thread.start()
 
-    # Run the asyncio event loop to send frames
-    asyncio.get_event_loop().run_until_complete(send_frames('ws://10.0.0.231:8080', stop_event))
+    # Run the asyncio event loop to send frames using asyncio.run()
+    asyncio.run(send_frames('ws://10.0.0.231:8080', stop_event))
 
     # Ensure the input thread completes
     input_thread.join()
