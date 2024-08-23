@@ -20,6 +20,10 @@ async def send_frames(uri, stop_event):
 
                 if stop_event.is_set():
                     break
+
+    except websockets.exceptions.ConnectionClosedError:
+        print("Server closed the connection.")
+        stop_event.set()  # Signal the stop event to shut down the client
     
     except Exception as e:
         print(f"An error occurred: {e}")

@@ -101,6 +101,7 @@ class session : public std::enable_shared_from_this<session> {
 
                     // Check if the 'q' key is pressed
                     if (cv::waitKey(1) == 'q') {
+                        cout << "Closing Client..." << endl;
 
                         // Close the WebSocket connection gracefully
                         auto self = shared_from_this();
