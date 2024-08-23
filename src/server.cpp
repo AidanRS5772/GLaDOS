@@ -76,17 +76,20 @@ class session : public std::enable_shared_from_this<session> {
             boost::ignore_unused(bytes_transferred);
 
             if (ec == boost::beast::websocket::error::closed) {
-                std::cout << "Client disconnected: " << client_id_ << std::endl;
+                cout << "Client disconnected: " << client_id_ << endl;
                 
                 cv::destroyWindow(client_id_);
+                cv::waitKey(1);
+
                 return;
             }
 
             if (ec) {
-                std::cerr << "Read error: " << ec.message() << std::endl;
+                cerr << "Read error: " << ec.message() << std::endl;
                 
-                // Clean up resources
                 cv::destroyWindow(client_id_);
+                cv::waitKey(1);
+
                 return;
             }
 
@@ -98,20 +101,20 @@ class session : public std::enable_shared_from_this<session> {
 
                     // Check if the 'q' key is pressed
                     if (cv::waitKey(1) == 'q') {
-                        std::cout << "Closing connection due to 'q' key press." << std::endl;
-                        
                         // First close the WebSocket connection gracefully
                         auto self = shared_from_this();
                         ws_.async_close(boost::beast::websocket::close_code::normal,
                             [self](boost::beast::error_code close_ec) {
                                 if (close_ec) {
-                                    std::cerr << "Close error: " << close_ec.message() << std::endl;
+                                    cerr << "Close error: " << close_ec.message() << endl;
                                 } else {
-                                    std::cout << "Server closed Client with Id: " << self->client_id_ << std::endl;
+                                    cout << "Server closed Client with Id: " << self->client_id_ << endl;
                                 }
+                                self->ws_.next_layer().close();
 
                                 // Clean up resources after the connection is closed
                                 cv::destroyWindow(self->client_id_);
+                                cv::waitKey(1);
                             });
 
                         // No need to destroy the window here; it will be done in the callback after closing the connection
@@ -119,7 +122,7 @@ class session : public std::enable_shared_from_this<session> {
                     }
 
                 } catch (const std::exception &e) {
-                    std::cerr << "Frame processing error: " << e.what() << std::endl;
+                    cerr << "Frame processing error: " << e.what() << endl;
                 }
             }
 

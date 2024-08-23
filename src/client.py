@@ -25,6 +25,10 @@ async def send_frames(uri, stop_event):
         print("Server closed the connection.")
         stop_event.set()  # Signal the stop event to shut down the client
     
+    except websockets.exceptions.ConnectionClosedOK:
+        print("Connection closed normally (1000). Exiting.")
+        stop_event.set()  # Signal the stop event to shut down the client
+
     except Exception as e:
         print(f"An error occurred: {e}")
         stop_event.set()  # Signal the stop event to shut down the client
@@ -59,4 +63,5 @@ async def main():
 
 if __name__ == '__main__':
     asyncio.run(main())
+
 
