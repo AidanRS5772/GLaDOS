@@ -11,7 +11,7 @@ async def send_frames(uri):
             if not ret:
                 break
             
-            _, buffer = cv2.imencode('.jpg', frame)
+            _, buffer = cv2.imencode('.jpg', [int(cv2.IMWRITE_JPEG_QUALITY), 80])
             await websocket.send(buffer.tobytes())  # Send frame as binary
 
         cap.release()

@@ -91,14 +91,17 @@ class session : public std::enable_shared_from_this<session> {
                     cv::Mat frame = process_data_to_frame(buffer_);
                     cv::imshow(client_id_, frame);
 
-                    // Check if the 'q' key is pressed
                     if (cv::waitKey(1) == 'q') {
+                        // Cancel any pending operations to avoid race conditions
+                        ws_.next_layer().cancel();
+
                         // Close the OpenCV window associated with this client
                         cv::destroyWindow(client_id_);
 
                         // Close the WebSocket connection gracefully
+                        auto self = shared_from_this();  // Keep the session alive during the close
                         ws_.async_close(boost::beast::websocket::close_code::normal,
-                            [self = shared_from_this()](boost::beast::error_code close_ec) { // Renamed to avoid shadowing
+                            [self](boost::beast::error_code close_ec) {
                                 if (close_ec) {
                                     std::cerr << "Close error: " << close_ec.message() << std::endl;
                                 } else {
