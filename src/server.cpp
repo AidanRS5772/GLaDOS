@@ -77,11 +77,19 @@ class session : public std::enable_shared_from_this<session> {
 
             if (ec == boost::beast::websocket::error::closed) {
                 std::cout << "Client disconnected: " << client_id_ << std::endl;
+                
+                cv::destroyWindow(client_id_);
+                cv::waitKey(10);
+
                 return;
             }
 
             if (ec) {
                 std::cerr << "Read error: " << ec.message() << std::endl;
+
+                cv::destroyWindow(client_id_);
+                cv::waitKey(10);
+
                 return;
             }
 
@@ -93,6 +101,8 @@ class session : public std::enable_shared_from_this<session> {
 
                     // Check if the 'q' key is pressed
                     if (cv::waitKey(1) == 'q') {
+                        std::cout << "Closing connection due to 'q' key press." << std::endl;
+
                         // Close the WebSocket connection gracefully
                         auto self = shared_from_this();
                         ws_.async_close(boost::beast::websocket::close_code::normal,
@@ -100,7 +110,7 @@ class session : public std::enable_shared_from_this<session> {
                                 if (close_ec) {
                                     std::cerr << "Close error: " << close_ec.message() << std::endl;
                                 } else {
-                                    std::cout << "Client closed with Id: " << self->client_id_ << std::endl;
+                                    std::cout << "Server closed Client with Id: " << self->client_id_ << std::endl;
                                 }
                             });
 
@@ -118,6 +128,7 @@ class session : public std::enable_shared_from_this<session> {
             // Continue reading data from the client
             do_read();
         }
+
 
 
         void on_write(boost::beast::error_code ec, std::size_t bytes_transferred) {
