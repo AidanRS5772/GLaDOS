@@ -101,14 +101,15 @@ class session : public std::enable_shared_from_this<session> {
 
                     // Check if the 'q' key is pressed
                     if (cv::waitKey(1) == 'q') {
+                        // DO NOT DELETE CONNECTION 
+                        // CANT CLOSE UNLESS YOU DO THIS PRINT WE MUST APEASE THE ASYNC GODS
+                        cout << "Server Close of Client: " << client_id_ << endl;
                         // First close the WebSocket connection gracefully
                         auto self = shared_from_this();
                         ws_.async_close(boost::beast::websocket::close_code::normal,
                             [self](boost::beast::error_code close_ec) {
                                 if (close_ec) {
                                     cerr << "Close error: " << close_ec.message() << endl;
-                                } else {
-                                    cout << "Server closed Client with Id: " << self->client_id_ << endl;
                                 }
                                 self->ws_.next_layer().close();
 
@@ -177,12 +178,10 @@ public:
             cerr << "Listen error: " << ec.message() << endl;
             return;
         }
-
-        cout << "Listener successfully created..." << endl;
     }
 
     void do_accept() {
-        std::cout << "Starting async_accept..." << std::endl;
+        std::cout << "Listening..." << std::endl;
 
         // Use shared_from_this() only after the object is managed by a shared_ptr
         auto self = shared_from_this();
@@ -211,7 +210,6 @@ int main() {
         boost::asio::io_context ioc{1};
 
         boost::asio::ip::tcp::endpoint endpoint{ boost::asio::ip::make_address(ip_address), port};
-        cout << "Made EndPoint..." << endl;
 
         auto listener_ptr = make_shared<listener>(ioc, endpoint);
 
