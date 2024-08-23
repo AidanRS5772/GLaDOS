@@ -33,9 +33,6 @@ async def send_frames(uri, stop_event):
             cap = cv2.VideoCapture(0)  # Open webcam
 
             while cap.isOpened():
-                if stop_event.is_set():
-                    break
-
                 ret, frame = cap.read()
                 if not ret or stop_event.is_set():
                     break
@@ -43,14 +40,7 @@ async def send_frames(uri, stop_event):
                 _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
                 await websocket.send(buffer.tobytes())  # Send frame as binary
 
-                # Listen for a message from the server
-                try:
-                    message = await websocket.recv()
-                    if message == "STOP":
-                        print("Received STOP message from server, stopping.")
-                        stop_event.set()
-                        break
-                except websockets.exceptions.ConnectionClosed:
+                if stop_event.is_set():
                     break
 
     except websockets.exceptions.ConnectionClosedError:
@@ -67,7 +57,7 @@ async def send_frames(uri, stop_event):
     
     finally:
         cap.release()
-        sys.exit(0)
+        sys.exit(0)  # Ensure the client exits after the connection is closed
 
 async def main():
     stop_event = threading.Event()

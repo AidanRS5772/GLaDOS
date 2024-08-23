@@ -123,20 +123,22 @@ class session : public std::enable_shared_from_this<session> {
         }
 
         void close_connection() {
-            cout << "Sending stop message to client: " << client_id_ << endl;
+            if (!ws_.is_open()) {
+                cout << "WebSocket is already closed for client: " << client_id_ << endl;
+                return;
+            }
 
-            // Step 1: Send the stop message
-            ws_.text(true);  // Ensure we're sending a text message
+            cout << "Starting Server Close of Client: " << client_id_ << endl;
+
+            // Step 1: Ensure any pending writes are complete
             auto self = shared_from_this();
-            ws_.async_write(boost::asio::buffer("STOP"), [self](boost::beast::error_code ec, std::size_t) {
+            ws_.async_write(boost::asio::buffer(""), [self](boost::beast::error_code ec, std::size_t) {
                 if (ec) {
-                    cerr << "Error sending stop message: " << ec.message() << endl;
+                    cerr << "Error flushing data: " << ec.message() << endl;
                     return;
                 }
 
-                cout << "Stop message sent, now closing connection for client: " << self->client_id_ << endl;
-
-                // Step 2: Initiate WebSocket close after sending the stop message
+                // Step 2: After flushing, initiate the WebSocket close handshake
                 self->ws_.async_close(boost::beast::websocket::close_code::normal,
                     [self](boost::beast::error_code close_ec) {
                         if (close_ec) {
