@@ -3,6 +3,7 @@ import websockets
 import cv2
 import websockets.exceptions
 import threading
+import sys
 
 async def send_frames(uri, stop_event):
     try:
@@ -17,7 +18,6 @@ async def send_frames(uri, stop_event):
                 _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
                 await websocket.send(buffer.tobytes())  # Send frame as binary
 
-                # Check if the shutdown task is complete
                 if stop_event.is_set():
                     break
 
@@ -30,8 +30,7 @@ async def send_frames(uri, stop_event):
     
     finally:
         cap.release()
-        if not stop_event.is_set():
-            stop_event.set()  # Ensure that the event is set to stop the client
+        stop_event.set()  # Ensure that the event is set to stop the client
 
 
 def check_for_shutdown(stop_event):
@@ -56,6 +55,9 @@ async def main():
     input_thread.join()
 
     print("Client has shut down.")
+
+    # Force exit to ensure the program terminates
+    sys.exit(0)
 
 if __name__ == '__main__':
     asyncio.run(main())
