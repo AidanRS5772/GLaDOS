@@ -35,6 +35,16 @@ class session : public std::enable_shared_from_this<session> {
             ws_.async_accept(boost::beast::bind_front_handler(&session::on_accept, self));
         }
 
+        void handle_close(const std::string& reason) {
+            cout << reason << client_id_ << endl;
+
+            // Ensure resources are cleaned up after the connection is closed
+            cv::destroyWindow(client_id_);
+            cv::waitKey(1);  // Ensure the window is closed properly
+
+            ws_.next_layer().close();
+        }
+
     private:
         void on_accept(boost::beast::error_code ec) {
             if (ec) {
@@ -47,8 +57,12 @@ class session : public std::enable_shared_from_this<session> {
         }
 
         void do_read() {
-            auto self = shared_from_this();  // Capture the shared_ptr to this session
-            ws_.async_read(buffer_, boost::beast::bind_front_handler(&session::on_read, self));
+            // Capture the shared_ptr to this session to keep it alive
+            auto self = shared_from_this();
+
+            ws_.async_read(buffer_, [self](boost::beast::error_code ec, size_t bytes_transferred) {
+                self->on_read(ec, bytes_transferred);  // Forward the call to on_read
+            });
         }
 
         cv::Mat process_data_to_frame(boost::beast::flat_buffer &buffer){
@@ -76,54 +90,29 @@ class session : public std::enable_shared_from_this<session> {
             boost::ignore_unused(bytes_transferred);
 
             if (ec == boost::beast::websocket::error::closed) {
-                cout << "Client disconnected: " << client_id_ << endl;
-                
-                cv::destroyWindow(client_id_);
-                cv::waitKey(1);
-
+                handle_close("Client disconnected: ");
                 return;
             }
 
             if (ec) {
-                cerr << "Read error: " << ec.message() << std::endl;
-                
-                cv::destroyWindow(client_id_);
-                cv::waitKey(1);
-
+                cerr << "Read error: " << ec.message() << endl;
+                handle_close("Closing due to read error: ");
                 return;
             }
 
             if (!ws_.got_text()) {
                 try {
-                    // Process the data to get the frame
                     cv::Mat frame = process_data_to_frame(buffer_);
                     cv::imshow(client_id_, frame);
 
-                    // Check if the 'q' key is pressed
                     if (cv::waitKey(1) == 'q') {
-                        // DO NOT DELETE CONNECTION 
-                        // CANT CLOSE UNLESS YOU DO THIS PRINT WE MUST APEASE THE ASYNC GODS
-                        cout << "Server Close of Client: " << client_id_ << endl;
-                        // First close the WebSocket connection gracefully
-                        auto self = shared_from_this();
-                        ws_.async_close(boost::beast::websocket::close_code::normal,
-                            [self](boost::beast::error_code close_ec) {
-                                if (close_ec) {
-                                    cerr << "Close error: " << close_ec.message() << endl;
-                                }
-                                self->ws_.next_layer().close();
-
-                                // Clean up resources after the connection is closed
-                                cv::destroyWindow(self->client_id_);
-                                cv::waitKey(1);
-                            });
-
-                        // No need to destroy the window here; it will be done in the callback after closing the connection
+                        close_connection();
                         return;
                     }
 
-                } catch (const std::exception &e) {
+                } catch (const std::exception& e) {
                     cerr << "Frame processing error: " << e.what() << endl;
+                    handle_close("Closing due to frame processing error: ");
                 }
             }
 
@@ -131,19 +120,19 @@ class session : public std::enable_shared_from_this<session> {
             do_read();
         }
 
+        void close_connection() {
+            cout << "Starting Server Close of Client: " << client_id_ << endl;
 
-
-
-        void on_write(boost::beast::error_code ec, std::size_t bytes_transferred) {
-            boost::ignore_unused(bytes_transferred);
-
-            if (ec) {
-                std::cerr << "Write error: " << ec.message() << std::endl;
-                return;
-            }
-
-            buffer_.consume(buffer_.size());
-            do_read();
+            auto self = shared_from_this();
+            ws_.async_close(boost::beast::websocket::close_code::normal,
+                [self](boost::beast::error_code close_ec) {
+                    if (close_ec) {
+                        cerr << "Close error: " << close_ec.message() << endl;
+                    } else {
+                        cout << "Server closed Client with Id: " << self->client_id_ << endl;
+                    }
+                    self->handle_close("Clean up after async_close: ");
+                });
         }
 };
 
@@ -185,8 +174,7 @@ public:
 
         // Use shared_from_this() only after the object is managed by a shared_ptr
         auto self = shared_from_this();
-        acceptor_.async_accept(socket_, 
-            [self](boost::beast::error_code ec) {
+        acceptor_.async_accept(socket_, [self](boost::beast::error_code ec) {
                 if (ec) {
                     std::cerr << "Accept error: " << ec.message() << std::endl;
                 } else {
