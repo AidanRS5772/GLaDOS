@@ -2,36 +2,20 @@ import asyncio
 import websockets
 import cv2
 import websockets.exceptions
+import threading
 
-async def send_frames(uri):
+async def send_frames(uri, stop_event):
     async with websockets.connect(uri) as websocket:
         cap = cv2.VideoCapture(0)  # Open webcam
-
-        async def check_for_shutdown():
-            # This will run in a background thread to avoid blocking the main loop
-            while True:
-                command = await asyncio.get_running_loop().run_in_executor(None, input, "Type 'q' to quit: ")
-                if command.lower() == 'q':
-                    print("Shutting down client connection.")
-                    await websocket.close()  # Gracefully close the connection
-                    cap.release()  # Release the webcam
-                    break
-
-        # Start the shutdown check in the background
-        shutdown_task = asyncio.create_task(check_for_shutdown())
 
         try:
             while cap.isOpened():
                 ret, frame = cap.read()
-                if not ret:
+                if not ret or stop_event.is_set():
                     break
 
                 _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
                 await websocket.send(buffer.tobytes())  # Send frame as binary
-
-                # Check if the shutdown task is complete
-                if shutdown_task.done():
-                    break
 
         except websockets.exceptions.ConnectionClosedError:
             print("Server closed the connection.")
@@ -39,8 +23,26 @@ async def send_frames(uri):
             print(f"An error occurred: {e}")
         finally:
             cap.release()
-            if not shutdown_task.done():
-                shutdown_task.cancel()  # Cancel the shutdown task if it hasn't finished
+            if not stop_event.is_set():
+                await websocket.close()
+
+def check_for_shutdown(stop_event):
+    while True:
+        command = input("Type 'q' to quit: ")
+        if command.lower() == 'q':
+            print("Shutting down client connection.")
+            stop_event.set()
+            break
 
 if __name__ == '__main__':
-    asyncio.get_event_loop().run_until_complete(send_frames('ws://10.0.0.231:8080'))
+    stop_event = threading.Event()
+    
+    # Start the shutdown check in a separate thread
+    input_thread = threading.Thread(target=check_for_shutdown, args=(stop_event,))
+    input_thread.start()
+
+    # Run the asyncio event loop to send frames
+    asyncio.get_event_loop().run_until_complete(send_frames('ws://10.0.0.231:8080', stop_event))
+
+    # Ensure the input thread completes
+    input_thread.join()
