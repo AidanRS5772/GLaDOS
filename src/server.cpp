@@ -79,17 +79,14 @@ class session : public std::enable_shared_from_this<session> {
                 std::cout << "Client disconnected: " << client_id_ << std::endl;
                 
                 cv::destroyWindow(client_id_);
-                cv::waitKey(10);
-
                 return;
             }
 
             if (ec) {
                 std::cerr << "Read error: " << ec.message() << std::endl;
-
+                
+                // Clean up resources
                 cv::destroyWindow(client_id_);
-                cv::waitKey(10);
-
                 return;
             }
 
@@ -101,9 +98,9 @@ class session : public std::enable_shared_from_this<session> {
 
                     // Check if the 'q' key is pressed
                     if (cv::waitKey(1) == 'q') {
-                        cout << "Closing Client..." << endl;
-
-                        // Close the WebSocket connection gracefully
+                        std::cout << "Closing connection due to 'q' key press." << std::endl;
+                        
+                        // First close the WebSocket connection gracefully
                         auto self = shared_from_this();
                         ws_.async_close(boost::beast::websocket::close_code::normal,
                             [self](boost::beast::error_code close_ec) {
@@ -112,11 +109,12 @@ class session : public std::enable_shared_from_this<session> {
                                 } else {
                                     std::cout << "Server closed Client with Id: " << self->client_id_ << std::endl;
                                 }
+
+                                // Clean up resources after the connection is closed
+                                cv::destroyWindow(self->client_id_);
                             });
 
-                        cv::destroyWindow(client_id_);
-                        cv::waitKey(10);
-
+                        // No need to destroy the window here; it will be done in the callback after closing the connection
                         return;
                     }
 
@@ -128,6 +126,7 @@ class session : public std::enable_shared_from_this<session> {
             // Continue reading data from the client
             do_read();
         }
+
 
 
 

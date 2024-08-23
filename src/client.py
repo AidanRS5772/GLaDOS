@@ -31,7 +31,7 @@ async def send_frames(uri, stop_event):
     
     finally:
         cap.release()
-        stop_event.set()  # Ensure that the event is set to stop the client
+        sys.exit(0)  # Ensure the client exits after the connection is closed
 
 
 def check_for_shutdown(stop_event):
@@ -57,8 +57,6 @@ async def main():
 
     print("Client has shut down.")
 
-    # Force exit to ensure the program terminates
-    sys.exit(0)
-
 if __name__ == '__main__':
     asyncio.run(main())
+
