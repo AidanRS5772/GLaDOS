@@ -75,13 +75,13 @@ class session : public std::enable_shared_from_this<session> {
         void on_read(boost::beast::error_code ec, std::size_t bytes_transferred) {
             boost::ignore_unused(bytes_transferred);
 
-            if (ec == boost::beast::websocket::error::closed){
-                cout << "Client disconnected: " << client_id_ << std::endl;
+            if (ec == boost::beast::websocket::error::closed) {
+                std::cout << "Client disconnected: " << client_id_ << std::endl;
                 return;
-            } 
+            }
 
             if (ec) {
-                cerr << "Read error: " << ec.message() << endl;
+                std::cerr << "Read error: " << ec.message() << std::endl;
                 return;
             }
 
@@ -91,25 +91,23 @@ class session : public std::enable_shared_from_this<session> {
                     cv::Mat frame = process_data_to_frame(buffer_);
                     cv::imshow(client_id_, frame);
 
+                    // Check if the 'q' key is pressed
                     if (cv::waitKey(1) == 'q') {
-                        // Cancel any pending operations to avoid race conditions
-                        ws_.next_layer().cancel();
-
-                        // Close the OpenCV window associated with this client
-                        cv::destroyWindow(client_id_);
-
                         // Close the WebSocket connection gracefully
-                        auto self = shared_from_this();  // Keep the session alive during the close
+                        auto self = shared_from_this();
                         ws_.async_close(boost::beast::websocket::close_code::normal,
                             [self](boost::beast::error_code close_ec) {
                                 if (close_ec) {
                                     std::cerr << "Close error: " << close_ec.message() << std::endl;
                                 } else {
-                                    std::cout << "Connection with client " << self->client_id_ << " closed." << std::endl;
+                                    std::cout << "Client closed with Id: " << self->client_id_ << std::endl;
                                 }
                             });
 
-                        return;  // Stop processing for this client
+                        cv::destroyWindow(client_id_);
+                        cv::waitKey(10);
+
+                        return;
                     }
 
                 } catch (const std::exception &e) {
@@ -117,9 +115,10 @@ class session : public std::enable_shared_from_this<session> {
                 }
             }
 
-
+            // Continue reading data from the client
             do_read();
         }
+
 
         void on_write(boost::beast::error_code ec, std::size_t bytes_transferred) {
             boost::ignore_unused(bytes_transferred);
