@@ -5,6 +5,27 @@ import websockets.exceptions
 import threading
 import sys
 import select
+import platform
+
+if platform.system() == "Windows":
+    import msvcrt
+
+def check_for_shutdown(stop_event):
+    while not stop_event.is_set():
+        if platform.system() == "Windows":
+            if msvcrt.kbhit():
+                command = msvcrt.getch().decode('utf-8')
+                if command.lower() == 'q':
+                    print("Shutting down client connection.")
+                    stop_event.set()
+                    break
+        else:
+            if sys.stdin in select.select([sys.stdin], [], [], 1)[0]:
+                command = input().strip()
+                if command.lower() == 'q':
+                    print("Shutting down client connection.")
+                    stop_event.set()
+                    break
 
 async def send_frames(uri, stop_event):
     try:
@@ -37,15 +58,6 @@ async def send_frames(uri, stop_event):
     finally:
         cap.release()
         sys.exit(0)  # Ensure the client exits after the connection is closed
-
-def check_for_shutdown(stop_event):
-    while not stop_event.is_set():
-        if sys.stdin in select.select([sys.stdin], [], [], 1)[0]:
-            command = input()  # Non-blocking input
-            if command.lower().strip() == 'q':
-                print("Shutting down client connection.")
-                stop_event.set()
-                break
 
 async def main():
     stop_event = threading.Event()
