@@ -11,9 +11,13 @@ find_package(rapidcsv REQUIRED)
 find_package(Boost REQUIRED)
 find_package(OpenCV REQUIRED)
 
-add_executable(${PROJECT_NAME} src/server.cpp)
+# First executable from server.cpp
+add_executable(server src/server.cpp)
+target_link_libraries(server Eigen3::Eigen)
+target_link_libraries(server rapidcsv::rapidcsv)
+target_link_libraries(server boost::boost)
+target_link_libraries(server ${OpenCV_LIBS})
 
-target_link_libraries(${PROJECT_NAME} Eigen3::Eigen)
-target_link_libraries(${PROJECT_NAME} rapidcsv::rapidcsv)
-target_link_libraries(${PROJECT_NAME} boost::boost)
-target_link_libraries(${PROJECT_NAME} ${OpenCV_LIBS})
+# Second executable from gen_facial_recog_data.cpp
+add_executable(gen_facial_recog_data src/gen_facial_recog_data.cpp)
+target_link_libraries(gen_facial_recog_data ${OpenCV_LIBS})
