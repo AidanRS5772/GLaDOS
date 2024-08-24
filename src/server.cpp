@@ -125,7 +125,7 @@ class session : public std::enable_shared_from_this<session> {
                         return;
                     }
 
-                    send_ready_signal();
+                    send_ack_signal();
                 } catch (const std::exception& e) {
                     cerr << "Frame processing error: " << e.what() << endl;
                     handle_close("Closing due to frame processing error: ");
@@ -136,10 +136,11 @@ class session : public std::enable_shared_from_this<session> {
             do_read();
         }
 
-        void send_ready_signal() {
+        void send_ack_signal() {
             auto self = shared_from_this();
+            string msg = "ACK";
             ws_.text(true);  // Ensure we're sending a text message
-            ws_.async_write(boost::asio::buffer("R"), [self](boost::beast::error_code ec, std::size_t) {
+            ws_.async_write(boost::asio::buffer(msg), [self](boost::beast::error_code ec, std::size_t) {
                 if (ec) {
                     cerr << "Error sending ready signal: " << ec.message() << endl;
                     return;

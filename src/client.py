@@ -44,10 +44,8 @@ async def send_frames(uri, stop_event):
                     break
 
                 ready_signal = await websocket.recv()
-                ready_signal = ready_signal.strip()
-                print(f"Received signal: {ready_signal}")
-                if ready_signal != "R":
-                    print("Unexpected message from server, closing connection.")
+                if ready_signal != "ACK":
+                    print(f"Unexpected message from server : {ready_signal}")
                     break
 
     except websockets.exceptions.ConnectionClosedError:
