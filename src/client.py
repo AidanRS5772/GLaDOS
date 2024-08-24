@@ -27,6 +27,9 @@ def check_for_shutdown(stop_event):
                     stop_event.set()
                     break
 
+
+JPG_IMAGE_QUALITY = 90
+
 async def send_frames(uri, stop_event):
     try:
         async with websockets.connect(uri) as websocket:
@@ -37,7 +40,7 @@ async def send_frames(uri, stop_event):
                 if not ret or stop_event.is_set():
                     break
 
-                _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+                _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPG_IMAGE_QUALITY])
                 await websocket.send(buffer.tobytes())  # Send frame as binary
 
                 if stop_event.is_set():
