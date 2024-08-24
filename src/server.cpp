@@ -23,12 +23,34 @@ class session : public std::enable_shared_from_this<session> {
     boost::beast::flat_buffer buffer_;
     string client_id_;
 
+    // Adjustment Numbers
+    const int PRE_THRESH = 400; // Threshhold for KNN background subtractor
+    const int FRAME_HIST = 120; // Length of frame history for KNN background subtractor
+    const int L_KERNAL_SZ = 7; // Size of convolution kernal for large morphologies
+    const int S_KERNAL_SZ = 3; // Size of convolution kernal for small morphologies
+    const int POST_THRESH = 50; // Gray scale limit for post thresholding of mask
+    const int AREA_THRESH = 5000; // Minimum threshold for identifying object
+
+    //Motion Detection
+    cv::Ptr<cv::BackgroundSubtractorKNN> KNN;
+    cv::Mat frame_, fg_mask_, clean_fg_mask_;
+
+    //Image Clean Up
+    cv::Mat kernal_L;
+    cv::Mat kernal_S;
+
+    vector<vector<cv::Point>> contours_;
+
     public:
-        explicit session(boost::asio::ip::tcp::socket &&socket): ws_(std::move(socket)) {
+        explicit session(boost::asio::ip::tcp::socket &&socket): 
+            ws_(std::move(socket)),
+            KNN(cv::createBackgroundSubtractorKNN(FRAME_HIST, PRE_THRESH, true)),
+            kernal_L(cv::getStructuringElement(cv::MORPH_RECT, cv::Size(L_KERNAL_SZ, L_KERNAL_SZ))),
+            kernal_S(cv::getStructuringElement(cv::MORPH_RECT, cv::Size(S_KERNAL_SZ, S_KERNAL_SZ))) {
+            
             boost::uuids::uuid uuid = boost::uuids::random_generator()();
             client_id_ = boost::uuids::to_string(uuid);
 
-            // Set TCP_NODELAY on the underlying TCP socket
             boost::asio::ip::tcp::no_delay option(true);
             ws_.next_layer().socket().set_option(option);
         }
@@ -69,24 +91,6 @@ class session : public std::enable_shared_from_this<session> {
             });
         }
 
-        // processes raw binary into cv::Mat
-        cv::Mat process_data_to_frame(boost::beast::flat_buffer &buffer){
-            auto data = boost::asio::buffer_cast<const uint8_t*>(buffer.data());
-            size_t data_size = buffer.size();
-
-            vector<uint8_t> frame_data(data, data + data_size);
-
-            cv::Mat frame = cv::imdecode(frame_data, cv::IMREAD_COLOR);
-            
-            if (frame.empty()) {
-                throw runtime_error("Failed to decode the frame.");
-            }
-
-            buffer.consume(buffer.size());
-
-            return frame;
-        }
-
         // Main event function this is where the action happens
         void on_read(boost::beast::error_code ec, std::size_t bytes_transferred) {
             boost::ignore_unused(bytes_transferred);
@@ -104,14 +108,24 @@ class session : public std::enable_shared_from_this<session> {
 
             if (!ws_.got_text()) {
                 try {
-                    cv::Mat frame = process_data_to_frame(buffer_);
-                    cv::imshow(client_id_, frame);
+                    process_data_to_frame(buffer_, frame_);
+
+                    KNN -> apply(frame_, fg_mask_);
+                    cv::threshold(fg_mask_, clean_fg_mask_, POST_THRESH, 255, cv::THRESH_BINARY);
+                    cv::morphologyEx(clean_fg_mask_, clean_fg_mask_, cv::MORPH_OPEN, kernal_S);
+                    cv::morphologyEx(clean_fg_mask_, clean_fg_mask_, cv::MORPH_CLOSE, kernal_L);
+
+                    cv::findContours(clean_fg_mask_, contours_, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+                    process_contours(contours_, frame_);
+
+                    cv::imshow(client_id_, frame_);
 
                     if (cv::waitKey(1) == 'q') {
                         close_connection();
                         return;
                     }
 
+                    send_ready_signal();
                 } catch (const std::exception& e) {
                     cerr << "Frame processing error: " << e.what() << endl;
                     handle_close("Closing due to frame processing error: ");
@@ -122,6 +136,56 @@ class session : public std::enable_shared_from_this<session> {
             do_read();
         }
 
+        void send_ready_signal() {
+            auto self = shared_from_this();
+            ws_.text(true);  // Ensure we're sending a text message
+            ws_.async_write(boost::asio::buffer("Ready"), [self](boost::beast::error_code ec, std::size_t) {
+                if (ec) {
+                    cerr << "Error sending ready signal: " << ec.message() << endl;
+                    return;
+                }
+
+                // Now wait for the next frame from the client
+                self->do_read();
+            });
+        }
+
+        // processes raw binary into cv::Mat
+        void process_data_to_frame(boost::beast::flat_buffer &buffer, cv::Mat &frame){
+            auto data = boost::asio::buffer_cast<const uint8_t*>(buffer.data());
+            size_t data_size = buffer.size();
+
+            vector<uint8_t> frame_data(data, data + data_size);
+
+            frame = cv::imdecode(frame_data, cv::IMREAD_COLOR);
+            
+            if (frame.empty()) {
+                throw runtime_error("Failed to decode the frame.");
+            }
+
+            buffer.consume(buffer.size());
+        }
+
+        // find largest countour and draw rect to frame
+        void process_contours(const vector<vector<cv::Point>> &contours, cv::Mat &frame){
+            int max_area = 0;
+            cv::Rect bounding_rect, max_bounding_rect;
+
+            for (long unsigned int i=0; i < contours.size(); i++){
+                bounding_rect = cv::boundingRect(contours[i]);
+                int area = bounding_rect.area();
+                if (max_area < area){
+                    max_bounding_rect = bounding_rect;
+                    max_area = area;
+                }
+            }
+
+            if (max_area > AREA_THRESH){
+                cv::rectangle(frame, max_bounding_rect, cv::Scalar(0, 255, 0), 2);
+            }
+        }
+
+
         void close_connection() {
             if (!ws_.is_open()) {
                 cout << "WebSocket is already closed for client: " << client_id_ << endl;
@@ -130,7 +194,6 @@ class session : public std::enable_shared_from_this<session> {
 
             cout << "Starting Server Close of Client: " << client_id_ << endl;
 
-            // Step 1: Ensure any pending writes are complete
             auto self = shared_from_this();
             ws_.async_write(boost::asio::buffer(""), [self](boost::beast::error_code ec, std::size_t) {
                 if (ec) {
@@ -138,7 +201,6 @@ class session : public std::enable_shared_from_this<session> {
                     return;
                 }
 
-                // Step 2: After flushing, initiate the WebSocket close handshake
                 self->ws_.async_close(boost::beast::websocket::close_code::normal,
                     [self](boost::beast::error_code close_ec) {
                         if (close_ec) {
