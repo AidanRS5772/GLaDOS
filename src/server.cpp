@@ -139,7 +139,7 @@ class session : public std::enable_shared_from_this<session> {
         void send_ready_signal() {
             auto self = shared_from_this();
             ws_.text(true);  // Ensure we're sending a text message
-            ws_.async_write(boost::asio::buffer("Ready"), [self](boost::beast::error_code ec, std::size_t) {
+            ws_.async_write(boost::asio::buffer("R"), [self](boost::beast::error_code ec, std::size_t) {
                 if (ec) {
                     cerr << "Error sending ready signal: " << ec.message() << endl;
                     return;
