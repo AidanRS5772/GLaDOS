@@ -10,6 +10,9 @@ class MyProject(ConanFile):
         self.requires("eigen/3.4.0")
         self.requires("boost/1.85.0")
         self.requires("rapidcsv/8.83")
+        self.requires("dlib/19.24.2")
+        self.requires("giflib/5.2.1")
+        self.requires("nlohmann_json/3.11.3")
 
     def configure(self):
         self.options["opencv"].contrib = True
