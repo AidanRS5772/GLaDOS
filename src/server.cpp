@@ -9,15 +9,10 @@
 #include <boost/uuid/uuid_io.hpp>
 #include <opencv2/opencv.hpp>
 #include <iostream>
-#include <memory>
-#include <string>
-#include <thread>
-#include <vector>
-#include <atomic>
-#include <chrono>
-#include <optional>
 
 using namespace std;
+
+class session_manager;
 
 // Adjustment Numbers
 const int PRE_THRESH = 400; // Threshhold for KNN background subtractor
@@ -31,6 +26,7 @@ class session : public std::enable_shared_from_this<session> {
     boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;
     boost::beast::flat_buffer buffer_;
     string client_id_;
+    session_manager &manager_;
 
     //Motion Detection
     cv::Ptr<cv::BackgroundSubtractorKNN> KNN;
@@ -43,8 +39,9 @@ class session : public std::enable_shared_from_this<session> {
     vector<vector<cv::Point>> contours_;
 
     public:
-        explicit session(boost::asio::ip::tcp::socket &&socket): 
+        explicit session(boost::asio::ip::tcp::socket &&socket, session_manager &manager): 
             ws_(std::move(socket)),
+            manager_(manager),
             KNN(cv::createBackgroundSubtractorKNN(FRAME_HIST, PRE_THRESH, true)),
             kernal_L(cv::getStructuringElement(cv::MORPH_RECT, cv::Size(L_KERNAL_SZ, L_KERNAL_SZ))),
             kernal_S(cv::getStructuringElement(cv::MORPH_RECT, cv::Size(S_KERNAL_SZ, S_KERNAL_SZ))) {
@@ -62,25 +59,14 @@ class session : public std::enable_shared_from_this<session> {
             ws_.async_accept(boost::beast::bind_front_handler(&session::on_accept, self));
         }
 
-        void handle_close(const std::string& reason) {
-            cout << reason << client_id_ << endl;
+        void handle_close(const std::string& reason);
 
-            cv::destroyWindow(client_id_);
-            cv::waitKey(1);  // Neded to close window
-
-            ws_.next_layer().close();
+        string get_client_id(){
+            return client_id_;
         }
 
     private:
-        void on_accept(boost::beast::error_code ec) {
-            if (ec) {
-                cerr << "Accept error: " << ec.message() << endl;
-                return;
-            }
-            cout << "Client connected with ID: " << client_id_ << endl;
-
-            do_read();
-        }
+        void on_accept(boost::beast::error_code ec);
 
 
         // Forms recursive loop with on_read()
@@ -112,7 +98,6 @@ class session : public std::enable_shared_from_this<session> {
                     process_data_to_frame(buffer_, frame_);
                     auto motion = find_motion(frame_);
                     if (motion.has_value()){
-                        
                     }else{
                     }
 
@@ -221,6 +206,109 @@ class session : public std::enable_shared_from_this<session> {
             });
         }
 };
+
+struct client_pair{
+    shared_ptr<session> primary;
+    shared_ptr<session> secondary;
+
+    client_pair(std::shared_ptr<session> primary_client = nullptr, std::shared_ptr<session> secondary_client = nullptr)
+        : primary(primary_client), secondary(secondary_client) {}
+
+    void add_primary(std::shared_ptr<session> primary_client) {
+        if (primary == nullptr) {
+            primary = primary_client;
+            std::cout << "Primary client added." << std::endl;
+        } else {
+            std::cerr << "Primary client already exists!" << std::endl;
+        }
+    }
+
+    void add_secondary(std::shared_ptr<session> secondary_client) {
+        if (secondary == nullptr) {
+            secondary = secondary_client;
+            std::cout << "Secondary client added." << std::endl;
+        } else {
+            std::cerr << "Secondary client already exists!" << std::endl;
+        }
+    }
+};
+
+class session_manager {
+    mutex mutex_;
+    unordered_map<string, client_pair> pairs_;
+
+
+    public:
+        void add_session(const string &client_id, shared_ptr<session> ses){
+            lock_guard<mutex> lock(mutex_);
+
+            string client_tag;
+            cout << "Add Client with Id:" << client_id << "to pair (pair_name-1or2): " << endl;
+            cin >> client_tag;
+
+            size_t pos = client_tag.find('-');
+
+            if (pos != std::string::npos) {
+                string name = client_tag.substr(0, pos);
+                int num = stoi(client_tag.substr(pos + 1));
+
+                if ((num != 1) && (num != 2)){
+                    cerr << "Invalid input format! Number is not 1 or 2." << endl;
+                }
+
+                auto &pair = pairs_[name];
+
+                if (num == 1) {
+                    pair.add_primary(ses);
+                } else {
+                    pair.add_secondary(ses);
+                }
+            } else {
+                cerr << "Invalid input format!" << endl;
+            }
+        }
+
+        void remove_session(const std::string& client_id) {
+            std::lock_guard<std::mutex> lock(mutex_);
+
+            // Iterate over all pairs and check for the session to remove
+            for (auto& pair_entry : pairs_) {
+                auto& pair = pair_entry.second;
+
+                if (pair.primary && pair.primary->get_client_id() == client_id) {
+                    std::cout << "Removing primary client: " << client_id << " from pair: " << pair_entry.first << std::endl;
+                    pair.primary.reset();
+                } else if (pair.secondary && pair.secondary->get_client_id() == client_id) {
+                    std::cout << "Removing secondary client: " << client_id << " from pair: " << pair_entry.first << std::endl;
+                    pair.secondary.reset();
+                }
+            }
+        }
+};
+
+void session::on_accept(boost::beast::error_code ec){
+    if (ec) {
+        cerr << "Accept error: " << ec.message() << endl;
+        return;
+    }
+    cout << "Client connected with ID: " << client_id_ << endl;
+
+    auto self = shared_from_this();
+    manager_.add_session(client_id_, self);
+
+    do_read();
+}
+
+void session::handle_close(const string &reason){
+    cout << reason << client_id_ << endl;
+
+    cv::destroyWindow(client_id_);
+    cv::waitKey(1);  // Neded to close window
+
+    manager_.remove_session(client_id_);
+
+    ws_.next_layer().close();
+}
 
 class listener : public std::enable_shared_from_this<listener> {
     boost::asio::ip::tcp::acceptor acceptor_;
