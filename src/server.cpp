@@ -15,21 +15,22 @@
 #include <vector>
 #include <atomic>
 #include <chrono>
+#include <optional>
 
 using namespace std;
+
+// Adjustment Numbers
+const int PRE_THRESH = 400; // Threshhold for KNN background subtractor
+const int FRAME_HIST = 120; // Length of frame history for KNN background subtractor
+const int L_KERNAL_SZ = 7; // Size of convolution kernal for large morphologies
+const int S_KERNAL_SZ = 3; // Size of convolution kernal for small morphologies
+const int POST_THRESH = 50; // Gray scale limit for post thresholding of mask
+const int AREA_THRESH = 5000; // Minimum threshold for identifying object
 
 class session : public std::enable_shared_from_this<session> {
     boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;
     boost::beast::flat_buffer buffer_;
     string client_id_;
-
-    // Adjustment Numbers
-    const int PRE_THRESH = 400; // Threshhold for KNN background subtractor
-    const int FRAME_HIST = 120; // Length of frame history for KNN background subtractor
-    const int L_KERNAL_SZ = 7; // Size of convolution kernal for large morphologies
-    const int S_KERNAL_SZ = 3; // Size of convolution kernal for small morphologies
-    const int POST_THRESH = 50; // Gray scale limit for post thresholding of mask
-    const int AREA_THRESH = 5000; // Minimum threshold for identifying object
 
     //Motion Detection
     cv::Ptr<cv::BackgroundSubtractorKNN> KNN;
@@ -109,14 +110,11 @@ class session : public std::enable_shared_from_this<session> {
             if (!ws_.got_text()) {
                 try {
                     process_data_to_frame(buffer_, frame_);
-
-                    KNN -> apply(frame_, fg_mask_);
-                    cv::threshold(fg_mask_, clean_fg_mask_, POST_THRESH, 255, cv::THRESH_BINARY);
-                    cv::morphologyEx(clean_fg_mask_, clean_fg_mask_, cv::MORPH_OPEN, kernal_S);
-                    cv::morphologyEx(clean_fg_mask_, clean_fg_mask_, cv::MORPH_CLOSE, kernal_L);
-
-                    cv::findContours(clean_fg_mask_, contours_, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-                    process_contours(contours_, frame_);
+                    auto motion = find_motion(frame_);
+                    if (motion.has_value()){
+                        
+                    }else{
+                    }
 
                     cv::imshow(client_id_, frame_);
 
@@ -168,12 +166,19 @@ class session : public std::enable_shared_from_this<session> {
         }
 
         // find largest countour and draw rect to frame
-        void process_contours(const vector<vector<cv::Point>> &contours, cv::Mat &frame){
+        optional<cv::Rect> find_motion(cv::Mat &frame){
+            KNN -> apply(frame_, fg_mask_);
+            cv::threshold(fg_mask_, clean_fg_mask_, POST_THRESH, 255, cv::THRESH_BINARY);
+            cv::morphologyEx(clean_fg_mask_, clean_fg_mask_, cv::MORPH_OPEN, kernal_S);
+            cv::morphologyEx(clean_fg_mask_, clean_fg_mask_, cv::MORPH_CLOSE, kernal_L);
+
+            cv::findContours(clean_fg_mask_, contours_, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
+
             int max_area = 0;
             cv::Rect bounding_rect, max_bounding_rect;
 
-            for (long unsigned int i=0; i < contours.size(); i++){
-                bounding_rect = cv::boundingRect(contours[i]);
+            for (long unsigned int i=0; i < contours_.size(); i++){
+                bounding_rect = cv::boundingRect(contours_[i]);
                 int area = bounding_rect.area();
                 if (max_area < area){
                     max_bounding_rect = bounding_rect;
@@ -183,7 +188,9 @@ class session : public std::enable_shared_from_this<session> {
 
             if (max_area > AREA_THRESH){
                 cv::rectangle(frame, max_bounding_rect, cv::Scalar(0, 255, 0), 2);
+                return max_bounding_rect;
             }
+            return nullopt;
         }
 
 
@@ -213,7 +220,6 @@ class session : public std::enable_shared_from_this<session> {
                     });
             });
         }
-
 };
 
 class listener : public std::enable_shared_from_this<listener> {
