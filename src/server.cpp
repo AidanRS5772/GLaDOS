@@ -76,45 +76,7 @@ class session : public std::enable_shared_from_this<session> {
     }
 
     // Main event function this is where the action happens
-    void on_read(boost::beast::error_code ec, std::size_t bytes_transferred) {
-        boost::ignore_unused(bytes_transferred);
-
-        if (ec == boost::beast::websocket::error::closed) {
-            handle_close("Client disconnected: ");
-            return;
-        }
-
-        if (ec) {
-            cerr << "Read error: " << ec.message() << endl;
-            handle_close("Closing due to read error: ");
-            return;
-        }
-
-        if (!ws_.got_text()) {
-            try {
-                process_data_to_frame(buffer_, frame_);
-                auto motion = find_motion(frame_);
-                if (motion.has_value()) {
-                } else {
-                }
-
-                cv::imshow(client_id_, frame_);
-
-                if (cv::waitKey(1) == 'q') {
-                    close_connection();
-                    return;
-                }
-
-                send_ack_signal();
-            } catch (const std::exception &e) {
-                cerr << "Frame processing error: " << e.what() << endl;
-                handle_close("Closing due to frame processing error: ");
-            }
-        }
-
-        // Continue to next frame
-        do_read();
-    }
+    void on_read(boost::beast::error_code ec, std::size_t bytes_transferred);
 
     void send_ack_signal() {
         auto self = shared_from_this();
@@ -207,6 +169,9 @@ struct client_pair {
     shared_ptr<session> primary;
     shared_ptr<session> secondary;
 
+    optional<cv::Rect> primary_motion;
+    optional<cv::Rect> secondary_motion;
+
     client_pair(std::shared_ptr<session> primary_client = nullptr, std::shared_ptr<session> secondary_client = nullptr)
         : primary(primary_client), secondary(secondary_client) {}
 
@@ -279,7 +244,39 @@ class session_manager {
             }
         }
     }
+
+    void motion_detected(const string &client_id, optional<cv::Rect> motion){
+        lock_guard<mutex> lock(mutex_);
+
+        for (auto &pair_entry : pairs_) {
+            auto &pair = pair_entry.second;
+
+            if (pair.primary && pair.primary->get_client_id() == client_id) {
+                pair.primary_motion = motion;
+            } else if (pair.secondary && pair.secondary->get_client_id() == client_id) {
+                pair.secondary_motion = motion;
+            }
+
+            if (pair.primary_motion.has_value() && pair.secondary_motion.has_value()) {
+                double primary_cx = static_cast<double>(pair.primary_motion->x) + static_cast<double>(pair.primary_motion->width/2);
+                double primary_cy = static_cast<double>(pair.primary_motion->y) + static_cast<double>(pair.primary_motion->height/2);
+
+                cout << "Primary motion detection ~ (x: " << primary_cx << " , y: " << primary_cy << ")" << endl;
+
+                double secondary_cx = static_cast<double>(pair.secondary_motion->x) + static_cast<double>(pair.secondary_motion->width/2);
+                double secondary_cy = static_cast<double>(pair.secondary_motion->y) + static_cast<double>(pair.secondary_motion->height/2);
+
+                cout << "Primary motion detection ~ (x: " << secondary_cx << " , y: " << secondary_cy << ")" << endl;
+
+                
+                pair.primary_motion.reset();
+                pair.secondary_motion.reset();
+            }
+        }
+    }
 };
+
+//These need to be right here for procedural compiling of the interdependent classes session and session manager
 
 void session::on_accept(boost::beast::error_code ec) {
     if (ec) {
@@ -304,6 +301,48 @@ void session::handle_close(const string &reason) {
 
     ws_.next_layer().close();
 }
+
+void session::on_read(boost::beast::error_code ec, std::size_t bytes_transferred){
+    boost::ignore_unused(bytes_transferred);
+
+    if (ec == boost::beast::websocket::error::closed) {
+        handle_close("Client disconnected: ");
+        return;
+    }
+
+    if (ec) {
+        cerr << "Read error: " << ec.message() << endl;
+        handle_close("Closing due to read error: ");
+        return;
+    }
+
+    if (!ws_.got_text()) {
+        try {
+            process_data_to_frame(buffer_, frame_);
+            auto motion = find_motion(frame_);
+            if (motion.has_value()) {
+            } else {
+            }
+
+            cv::imshow(client_id_, frame_);
+
+            if (cv::waitKey(1) == 'q') {
+                close_connection();
+                return;
+            }
+
+            send_ack_signal();
+        } catch (const std::exception &e) {
+            cerr << "Frame processing error: " << e.what() << endl;
+            handle_close("Closing due to frame processing error: ");
+        }
+    }
+
+    // Continue to next frame
+    do_read();
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
 
 class listener : public std::enable_shared_from_this<listener> {
     boost::asio::ip::tcp::acceptor acceptor_;
