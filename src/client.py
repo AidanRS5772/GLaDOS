@@ -6,6 +6,7 @@ import threading
 import sys
 import select
 import platform
+from picamera2 import Picamera2
 
 if platform.system() == "Windows":
     import msvcrt
@@ -33,11 +34,14 @@ JPG_IMAGE_QUALITY = 90
 async def send_frames(uri, stop_event):
     try:
         async with websockets.connect(uri) as websocket:
-            cap = cv2.VideoCapture(0)
+            picam2 = Picamera2()
+            config = picam2.create_preview_configuration(main={"size": (2592, 1944)})
+            picam2.configure(config)
+            picam2.start()
 
-            while cap.isOpened():
-                ret, frame = cap.read()
-                if not ret or stop_event.is_set():
+            while True:
+                frame = picam2.capture_array()
+                if stop_event.is_set():
                     break
 
                 _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPG_IMAGE_QUALITY])
