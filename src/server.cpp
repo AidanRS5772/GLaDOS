@@ -203,7 +203,7 @@ class session_manager {
         lock_guard<mutex> lock(mutex_);
 
         string client_tag;
-        cout << "Add Client with Id:" << client_id << "to pair (pair_name-1or2): " << endl;
+        cout << "Add Client with Id: " << client_id << " to pair (pair_name-1or2): ";
         cin >> client_tag;
 
         size_t pos = client_tag.find('-');
