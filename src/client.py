@@ -6,7 +6,7 @@ import threading
 import sys
 import select
 import platform
-import picamera2
+from libcamera import picamera2
 
 if platform.system() == "Windows":
     import msvcrt
