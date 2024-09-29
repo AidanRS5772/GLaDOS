@@ -67,7 +67,6 @@ async def send_frames(uri, stop_event):
         stop_event.set()
     
     finally:
-        cap.release()
         sys.exit(0)
 
 async def main():
