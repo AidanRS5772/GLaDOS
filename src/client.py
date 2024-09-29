@@ -29,7 +29,7 @@ def check_for_shutdown(stop_event):
                     break
 
 
-JPG_IMAGE_QUALITY = 90
+JPG_IMAGE_QUALITY = 50
 
 async def send_frames(uri, stop_event):
     try:
@@ -43,8 +43,9 @@ async def send_frames(uri, stop_event):
                 frame = picam2.capture_array()
                 if stop_event.is_set():
                     break
-
-                _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), JPG_IMAGE_QUALITY])
+                
+                frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                _, buffer = cv2.imencode('.jpg', frame_rgb, [int(cv2.IMWRITE_JPEG_QUALITY), JPG_IMAGE_QUALITY])
                 await websocket.send(buffer.tobytes())  
                 if stop_event.is_set():
                     break
