@@ -1,4 +1,3 @@
-import libcamera
 import asyncio
 import websockets
 import cv2
@@ -7,7 +6,7 @@ import threading
 import sys
 import select
 import platform
-import picamera2
+from picamera2 import Picamera2
 
 if platform.system() == "Windows":
     import msvcrt
