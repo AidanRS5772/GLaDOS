@@ -29,7 +29,7 @@ def check_for_shutdown(stop_event):
                     break
 
 
-JPG_IMAGE_QUALITY = 20
+JPG_IMAGE_QUALITY = 80
 
 async def send_frames(uri, stop_event):
     try:
