@@ -137,7 +137,7 @@ void session::on_read(boost::beast::error_code ec, std::size_t bytes_transferred
 
                 // Save the frame to a folder
                 try {
-                    bool success = cv::imwrite("../../../src/test_imgs" + filename.str(), frame_);
+                    bool success = cv::imwrite("../../../src/test_imgs/" + filename.str(), frame_);
                     if (!success) {
                         std::cerr << "Failed to save image: " << filename.str() << std::endl;
                     } else {
