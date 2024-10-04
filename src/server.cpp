@@ -255,8 +255,8 @@ void session::close_connection() {
 void session::handle_close(const std::string& reason) {
     std::cout << reason << client_id_ << std::endl;
 
-    cv::destroyWindow(client_id_);
-    cv::waitKey(1);  // Needed to close window
+    // cv::destroyWindow(client_id_);
+    // cv::waitKey(1);  // Needed to close window
 
     manager_.remove_session(client_id_);
 

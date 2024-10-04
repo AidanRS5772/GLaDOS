@@ -26,7 +26,6 @@ kernel_S = np.ones((S_KERNAL_SZ, S_KERNAL_SZ), np.uint8)
 kernel_L = np.ones((L_KERNAL_SZ, L_KERNAL_SZ), np.uint8)
 
 # Shared variables
-global shared_frame;
 shared_frame = None
 frame_lock = asyncio.Lock()
 frame_available_event = asyncio.Event()
@@ -117,6 +116,7 @@ async def motion_detection():
         stop_event.set()
 
 async def send_frames():
+    global shared_frame
     try:
         # Connect to frames WebSocket
         async with websockets.connect("ws://10.0.0.231:8080") as websocket_frames:
