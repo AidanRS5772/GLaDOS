@@ -1,6 +1,4 @@
 #include <boost/asio.hpp>
-#include <boost/asio/ip/tcp.hpp>
-#include <boost/asio/strand.hpp>
 #include <boost/beast/core.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/beast/websocket.hpp>
@@ -8,45 +6,43 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <iostream>
+#include <memory>
+#include <mutex>
 #include <opencv2/opencv.hpp>
+#include <unordered_map>
+#include <chrono>
+#include <thread>
 
 using namespace std;
 
-class session_manager;
+// SessionType to distinguish between frames and coordinates sessions
+enum class SessionType {
+    Frames,
+    Coordinates
+};
 
-// Adjustment Numbers
-const int PRE_THRESH = 400;    // Threshhold for KNN background subtractor
-const int FRAME_HIST = 120;    // Length of frame history for KNN background subtractor
-const int L_KERNAL_SZ = 7;     // Size of convolution kernal for large morphologies
-const int S_KERNAL_SZ = 3;     // Size of convolution kernal for small morphologies
-const int POST_THRESH = 50;    // Gray scale limit for post thresholding of mask
-const int AREA_THRESH = 5000;  // Minimum threshold for identifying object
+class session_manager;
 
 class session : public std::enable_shared_from_this<session> {
     boost::beast::websocket::stream<boost::beast::tcp_stream> ws_;
     boost::beast::flat_buffer buffer_;
-    string client_id_;
-    session_manager &manager_;
+    std::string client_id_;
+    session_manager& manager_;
+    SessionType session_type_;
 
-    // Motion Detection
-    cv::Ptr<cv::BackgroundSubtractorKNN> KNN;
-    cv::Mat frame_, fg_mask_, clean_fg_mask_;
-
-    // Image Clean Up
-    cv::Mat kernal_L;
-    cv::Mat kernal_S;
-
-    vector<vector<cv::Point>> contours_;
+    // Image data
+    cv::Mat frame_;
 
    public:
-    explicit session(boost::asio::ip::tcp::socket &&socket, session_manager &manager) : ws_(std::move(socket)),
-                                                                                        manager_(manager),
-                                                                                        KNN(cv::createBackgroundSubtractorKNN(FRAME_HIST, PRE_THRESH, true)),
-                                                                                        kernal_L(cv::getStructuringElement(cv::MORPH_RECT, cv::Size(L_KERNAL_SZ, L_KERNAL_SZ))),
-                                                                                        kernal_S(cv::getStructuringElement(cv::MORPH_RECT, cv::Size(S_KERNAL_SZ, S_KERNAL_SZ))) {
+    explicit session(boost::asio::ip::tcp::socket&& socket, session_manager& manager, SessionType session_type)
+        : ws_(std::move(socket)),
+          manager_(manager),
+          session_type_(session_type) {
+        // Generate a unique client ID
         boost::uuids::uuid uuid = boost::uuids::random_generator()();
         client_id_ = boost::uuids::to_string(uuid);
 
+        // Set TCP no-delay option
         boost::asio::ip::tcp::no_delay option(true);
         ws_.next_layer().socket().set_option(option);
     }
@@ -57,252 +53,64 @@ class session : public std::enable_shared_from_this<session> {
         ws_.async_accept(boost::beast::bind_front_handler(&session::on_accept, self));
     }
 
-    void handle_close(const std::string &reason);
-
-    string get_client_id() {
-        return client_id_;
-    }
+    void handle_close(const std::string& reason);
+    std::string get_client_id() const { return client_id_; }
 
    private:
     void on_accept(boost::beast::error_code ec);
-
-    // Forms recursive loop with on_read()
-    void do_read() {
-        auto self = shared_from_this();
-
-        ws_.async_read(buffer_, [self](boost::beast::error_code ec, size_t bytes_transferred) {
-            self->on_read(ec, bytes_transferred);
-        });
-    }
-
-    // Main event function this is where the action happens
+    void do_read();
     void on_read(boost::beast::error_code ec, std::size_t bytes_transferred);
-
-    void send_ack_signal() {
-        auto self = shared_from_this();
-        string msg = "ACK";
-        ws_.text(true);  // Ensure we're sending a text message
-        ws_.async_write(boost::asio::buffer(msg), [self](boost::beast::error_code ec, std::size_t) {
-            if (ec) {
-                cerr << "Error sending ready signal: " << ec.message() << endl;
-                return;
-            }
-
-            // Now wait for the next frame from the client
-            self->do_read();
-        });
-    }
-
-    // processes raw binary into cv::Mat
-    void process_data_to_frame(boost::beast::flat_buffer &buffer, cv::Mat &frame) {
-        auto data = boost::asio::buffer_cast<const uint8_t *>(buffer.data());
-        size_t data_size = buffer.size();
-
-        vector<uint8_t> frame_data(data, data + data_size);
-
-        frame = cv::imdecode(frame_data, cv::IMREAD_COLOR);
-
-        if (frame.empty()) {
-            throw runtime_error("Failed to decode the frame.");
-        }
-
-        buffer.consume(buffer.size());
-    }
-
-    // find largest countour and draw rect to frame
-    optional<cv::Rect> find_motion(cv::Mat &frame) {
-        KNN->apply(frame_, fg_mask_);
-        cv::threshold(fg_mask_, clean_fg_mask_, POST_THRESH, 255, cv::THRESH_BINARY);
-        cv::morphologyEx(clean_fg_mask_, clean_fg_mask_, cv::MORPH_OPEN, kernal_S);
-        cv::morphologyEx(clean_fg_mask_, clean_fg_mask_, cv::MORPH_CLOSE, kernal_L);
-
-        cv::findContours(clean_fg_mask_, contours_, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE);
-
-        int max_area = 0;
-        cv::Rect bounding_rect, max_bounding_rect;
-
-        for (long unsigned int i = 0; i < contours_.size(); i++) {
-            bounding_rect = cv::boundingRect(contours_[i]);
-            int area = bounding_rect.area();
-            if (max_area < area) {
-                max_bounding_rect = bounding_rect;
-                max_area = area;
-            }
-        }
-
-        if (max_area > AREA_THRESH) {
-            cv::rectangle(frame, max_bounding_rect, cv::Scalar(0, 255, 0), 2);
-            return max_bounding_rect;
-        }
-        return nullopt;
-    }
-
-    void close_connection() {
-        if (!ws_.is_open()) {
-            cout << "WebSocket is already closed for client: " << client_id_ << endl;
-            return;
-        }
-
-        cout << "Starting Server Close of Client: " << client_id_ << endl;
-
-        auto self = shared_from_this();
-        ws_.async_write(boost::asio::buffer(""), [self](boost::beast::error_code ec, std::size_t) {
-            if (ec) {
-                cerr << "Error flushing data: " << ec.message() << endl;
-                return;
-            }
-
-            self->ws_.async_close(boost::beast::websocket::close_code::normal,
-                                  [self](boost::beast::error_code close_ec) {
-                                      if (close_ec) {
-                                          cerr << "Close error: " << close_ec.message() << endl;
-                                      } else {
-                                          cout << "Server closed Client with Id: " << self->client_id_ << endl;
-                                      }
-                                      self->handle_close("Clean up after async_close: ");
-                                  });
-        });
-    }
-};
-
-struct client_pair {
-    shared_ptr<session> primary;
-    shared_ptr<session> secondary;
-
-    optional<cv::Rect> primary_motion;
-    optional<cv::Rect> secondary_motion;
-
-    client_pair(std::shared_ptr<session> primary_client = nullptr, std::shared_ptr<session> secondary_client = nullptr)
-        : primary(primary_client), secondary(secondary_client) {}
-
-    void add_primary(std::shared_ptr<session> primary_client) {
-        if (primary == nullptr) {
-            primary = primary_client;
-            std::cout << "Primary client added." << std::endl;
-        } else {
-            std::cerr << "Primary client already exists!" << std::endl;
-        }
-    }
-
-    void add_secondary(std::shared_ptr<session> secondary_client) {
-        if (secondary == nullptr) {
-            secondary = secondary_client;
-            std::cout << "Secondary client added." << std::endl;
-        } else {
-            std::cerr << "Secondary client already exists!" << std::endl;
-        }
-    }
+    void send_ack_signal();
+    void process_data_to_frame(boost::beast::flat_buffer& buffer, cv::Mat& frame);
+    void close_connection();
 };
 
 class session_manager {
-    mutex mutex_;
-    unordered_map<string, client_pair> pairs_;
+    std::mutex mutex_;
+    std::unordered_map<std::string, std::shared_ptr<session>> sessions_;
 
    public:
-    void add_session(const string &client_id, shared_ptr<session> ses) {
-        lock_guard<mutex> lock(mutex_);
-
-        string client_tag;
-        cout << "Add Client with Id: " << client_id << " to pair (pair_name-1or2): ";
-        cin >> client_tag;
-
-        size_t pos = client_tag.find('-');
-
-        if (pos != std::string::npos) {
-            string name = client_tag.substr(0, pos);
-            int num = stoi(client_tag.substr(pos + 1));
-
-            if ((num != 1) && (num != 2)) {
-                cerr << "Invalid input format! Number is not 1 or 2." << endl;
-            }
-
-            auto &pair = pairs_[name];
-
-            if (num == 1) {
-                pair.add_primary(ses);
-            } else {
-                pair.add_secondary(ses);
-            }
-        } else {
-            cerr << "Invalid input format!" << endl;
-        }
-    }
-
-    void remove_session(const std::string &client_id) {
+    void add_session(const std::string& client_id, std::shared_ptr<session> ses) {
         std::lock_guard<std::mutex> lock(mutex_);
-
-        // Iterate over all pairs and check for the session to remove
-        for (auto &pair_entry : pairs_) {
-            auto &pair = pair_entry.second;
-
-            if (pair.primary && pair.primary->get_client_id() == client_id) {
-                std::cout << "Removing primary client: " << client_id << " from pair: " << pair_entry.first << std::endl;
-                pair.primary.reset();
-            } else if (pair.secondary && pair.secondary->get_client_id() == client_id) {
-                std::cout << "Removing secondary client: " << client_id << " from pair: " << pair_entry.first << std::endl;
-                pair.secondary.reset();
-            }
-        }
+        sessions_[client_id] = ses;
+        std::cout << "Client added with ID: " << client_id << std::endl;
     }
 
-    void motion_detected(const string &client_id, optional<cv::Rect> motion){
-        lock_guard<mutex> lock(mutex_);
-
-        for (auto &pair_entry : pairs_) {
-            auto &pair = pair_entry.second;
-
-            if (pair.primary && pair.primary->get_client_id() == client_id) {
-                pair.primary_motion = motion;
-            } else if (pair.secondary && pair.secondary->get_client_id() == client_id) {
-                pair.secondary_motion = motion;
-            }
-
-            if (pair.primary_motion.has_value() && pair.secondary_motion.has_value()) {
-                double primary_cx = static_cast<double>(pair.primary_motion->x) + static_cast<double>(pair.primary_motion->width/2);
-                double primary_cy = static_cast<double>(pair.primary_motion->y) + static_cast<double>(pair.primary_motion->height/2);
-
-                cout << "Primary motion detection ~ (x: " << primary_cx << " , y: " << primary_cy << ")" << endl;
-
-                double secondary_cx = static_cast<double>(pair.secondary_motion->x) + static_cast<double>(pair.secondary_motion->width/2);
-                double secondary_cy = static_cast<double>(pair.secondary_motion->y) + static_cast<double>(pair.secondary_motion->height/2);
-
-                cout << "Primary motion detection ~ (x: " << secondary_cx << " , y: " << secondary_cy << ")" << endl;
-
-                
-                pair.primary_motion.reset();
-                pair.secondary_motion.reset();
-            }
-        }
+    void remove_session(const std::string& client_id) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        sessions_.erase(client_id);
+        std::cout << "Client removed with ID: " << client_id << std::endl;
     }
 };
 
-//These need to be right here for procedural compiling of the interdependent classes session and session manager
+// Session member function implementations
 
 void session::on_accept(boost::beast::error_code ec) {
     if (ec) {
-        cerr << "Accept error: " << ec.message() << endl;
+        std::cerr << "Accept error: " << ec.message() << std::endl;
         return;
     }
-    cout << "Client connected with ID: " << client_id_ << endl;
+    std::cout << "Client connected with ID: " << client_id_ << std::endl;
 
     auto self = shared_from_this();
     manager_.add_session(client_id_, self);
 
+    if (session_type_ == SessionType::Frames) {
+        send_ack_signal();
+    }
+
     do_read();
 }
 
-void session::handle_close(const string &reason) {
-    cout << reason << client_id_ << endl;
+void session::do_read() {
+    auto self = shared_from_this();
 
-    cv::destroyWindow(client_id_);
-    cv::waitKey(1);  // Neded to close window
-
-    manager_.remove_session(client_id_);
-
-    ws_.next_layer().close();
+    ws_.async_read(buffer_, [self](boost::beast::error_code ec, size_t bytes_transferred) {
+        self->on_read(ec, bytes_transferred);
+    });
 }
 
-void session::on_read(boost::beast::error_code ec, std::size_t bytes_transferred){
+void session::on_read(boost::beast::error_code ec, std::size_t bytes_transferred) {
     boost::ignore_unused(bytes_transferred);
 
     if (ec == boost::beast::websocket::error::closed) {
@@ -311,111 +119,233 @@ void session::on_read(boost::beast::error_code ec, std::size_t bytes_transferred
     }
 
     if (ec) {
-        cerr << "Read error: " << ec.message() << endl;
+        std::cerr << "Read error: " << ec.message() << std::endl;
         handle_close("Closing due to read error: ");
         return;
     }
 
-    if (!ws_.got_text()) {
-        try {
-            process_data_to_frame(buffer_, frame_);
-            auto motion = find_motion(frame_);
-            if (motion.has_value()) {
+    try {
+        if (session_type_ == SessionType::Frames) {
+            if (ws_.got_binary()) {
+                // Process frame data
+                process_data_to_frame(buffer_, frame_);
+
+                // Display the frame
+                static int frame_count = 0;
+                std::ostringstream filename;
+                filename << "received_frame_" << client_id_ << "_" << frame_count++ << ".jpg";
+
+                // Save the frame to a folder
+                try {
+                    bool success = cv::imwrite("../../../src/test_imgs" + filename.str(), frame_);
+                    if (!success) {
+                        std::cerr << "Failed to save image: " << filename.str() << std::endl;
+                    } else {
+                        std::cout << "Image saved successfully: " << filename.str() << std::endl;
+                    }
+                } catch (const cv::Exception& e) {
+                    std::cerr << "OpenCV exception: " << e.what() << std::endl;
+                } catch (const std::exception& e) {
+                    std::cerr << "Standard exception: " << e.what() << std::endl;
+                } catch (...) {
+                    std::cerr << "Unknown exception occurred while saving image." << std::endl;
+                }
+
+                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+
+                // Send ACK to client
+                send_ack_signal();
             } else {
-            }
-
-            cv::imshow(client_id_, frame_);
-
-            if (cv::waitKey(1) == 'q') {
-                close_connection();
+                std::cerr << "Expected binary message for frame data but received text." << std::endl;
+                handle_close("Closing due to incorrect message type.");
                 return;
             }
+        } else if (session_type_ == SessionType::Coordinates) {
+            // Process coordinates data
+            auto data = boost::asio::buffer_cast<const uint8_t*>(buffer_.data());
+            size_t data_size = buffer_.size();
 
-            send_ack_signal();
-        } catch (const std::exception &e) {
-            cerr << "Frame processing error: " << e.what() << endl;
-            handle_close("Closing due to frame processing error: ");
+            if (data_size != 8) {
+                std::cerr << "Invalid coordinates data size: " << data_size << std::endl;
+            } else {
+                int32_t net_x = 0, net_y = 0;
+                std::memcpy(&net_x, data, 4);
+                std::memcpy(&net_y, data + 4, 4);
+
+                int32_t x = ntohl(net_x);
+                int32_t y = ntohl(net_y);
+
+                std::cout << "Received coordinates: (" << x << ", " << y << ")" << std::endl;
+            }
+
+            buffer_.consume(buffer_.size());
         }
-    }
 
-    // Continue to next frame
-    do_read();
+        // Continue reading
+        do_read();
+
+    } catch (const std::exception& e) {
+        std::cerr << "Processing error: " << e.what() << std::endl;
+        handle_close("Closing due to processing error: ");
+    }
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////
+void session::send_ack_signal() {
+    auto self = shared_from_this();
+    std::string msg = "ACK";
+    ws_.text(true);  // Ensure we're sending a text message
+    ws_.async_write(boost::asio::buffer(msg), [self](boost::beast::error_code ec, std::size_t) {
+        if (ec) {
+            std::cerr << "Error sending ACK signal: " << ec.message() << std::endl;
+            return;
+        }
+
+        // Now wait for the next frame from the client
+        self->do_read();
+    });
+}
+
+void session::process_data_to_frame(boost::beast::flat_buffer& buffer, cv::Mat& frame) {
+    // Get a const_buffer pointing to the buffer's data
+    auto data = buffer.data();
+    size_t data_size = buffer.size();
+
+    // Create a vector of unsigned char from the buffer
+    std::vector<uchar> frame_data(boost::asio::buffer_cast<const uchar*>(data),
+                                  boost::asio::buffer_cast<const uchar*>(data) + data_size);
+
+    // Decode the JPEG image from the raw bytes
+    frame = cv::imdecode(frame_data, cv::IMREAD_COLOR);
+
+    if (frame.empty()) {
+        throw std::runtime_error("Failed to decode the frame.");
+    }
+
+    // Consume the buffer data
+    buffer.consume(buffer.size());
+}
+
+void session::close_connection() {
+    if (!ws_.is_open()) {
+        std::cout << "WebSocket is already closed for client: " << client_id_ << std::endl;
+        return;
+    }
+
+    std::cout << "Starting Server Close of Client: " << client_id_ << std::endl;
+
+    auto self = shared_from_this();
+    ws_.async_write(boost::asio::buffer(""), [self](boost::beast::error_code ec, std::size_t) {
+        if (ec) {
+            std::cerr << "Error flushing data: " << ec.message() << std::endl;
+            return;
+        }
+
+        self->ws_.async_close(boost::beast::websocket::close_code::normal,
+                              [self](boost::beast::error_code close_ec) {
+                                  if (close_ec) {
+                                      std::cerr << "Close error: " << close_ec.message() << std::endl;
+                                  } else {
+                                      std::cout << "Server closed Client with Id: " << self->client_id_ << std::endl;
+                                  }
+                                  self->handle_close("Clean up after async_close: ");
+                              });
+    });
+}
+
+void session::handle_close(const std::string& reason) {
+    std::cout << reason << client_id_ << std::endl;
+
+    cv::destroyWindow(client_id_);
+    cv::waitKey(1);  // Needed to close window
+
+    manager_.remove_session(client_id_);
+
+    ws_.next_layer().close();
+}
+
+// Listener class
 
 class listener : public std::enable_shared_from_this<listener> {
     boost::asio::ip::tcp::acceptor acceptor_;
     boost::asio::ip::tcp::socket socket_;
-    session_manager &manager_;
+    session_manager& manager_;
+    SessionType session_type_;
 
    public:
-    listener(boost::asio::io_context &ioc, boost::asio::ip::tcp::endpoint endpoint, session_manager &manager) : acceptor_(ioc), socket_(ioc), manager_(manager) {
+    listener(boost::asio::io_context& ioc, boost::asio::ip::tcp::endpoint endpoint, session_manager& manager, SessionType session_type)
+        : acceptor_(ioc), socket_(ioc), manager_(manager), session_type_(session_type) {
         boost::beast::error_code ec;
 
         acceptor_.open(endpoint.protocol(), ec);
         if (ec) {
-            cerr << "Open error: " << ec.message() << endl;
+            std::cerr << "Open error: " << ec.message() << std::endl;
             return;
         }
 
         acceptor_.set_option(boost::asio::socket_base::reuse_address(true), ec);
         if (ec) {
-            cerr << "Set option error: " << ec.message() << std::endl;
+            std::cerr << "Set option error: " << ec.message() << std::endl;
             return;
         }
 
         acceptor_.bind(endpoint, ec);
         if (ec) {
-            cerr << "Bind error: " << ec.message() << endl;
+            std::cerr << "Bind error: " << ec.message() << std::endl;
             return;
         }
 
         acceptor_.listen(boost::asio::socket_base::max_listen_connections, ec);
         if (ec) {
-            cerr << "Listen error: " << ec.message() << endl;
+            std::cerr << "Listen error: " << ec.message() << std::endl;
             return;
         }
     }
 
-    void do_accept() {
-        std::cout << "Listening..." << std::endl;
+    void do_accept();
 
-        // Use shared_from_this() only after the object is managed by a shared_ptr
-        auto self = shared_from_this();
-        acceptor_.async_accept(socket_, [self](boost::beast::error_code ec) {
-            if (ec) {
-                std::cerr << "Accept error: " << ec.message() << std::endl;
-            } else {
-                std::cout << "Connection accepted..." << std::endl;
-                std::make_shared<session>(std::move(self->socket_), self->manager_)->run();
-            }
-
-            // Continue accepting new connections
-            self->do_accept();
-        });
-    }
+   private:
 };
+
+void listener::do_accept() {
+    std::cout << "Listening on port " << acceptor_.local_endpoint().port() << "..." << std::endl;
+
+    auto self = shared_from_this();
+    acceptor_.async_accept(socket_, [self](boost::beast::error_code ec) {
+        if (ec) {
+            std::cerr << "Accept error: " << ec.message() << std::endl;
+        } else {
+            std::cout << "Connection accepted on port " << self->acceptor_.local_endpoint().port() << "..." << std::endl;
+            std::make_shared<session>(std::move(self->socket_), self->manager_, self->session_type_)->run();
+        }
+
+        // Continue accepting new connections
+        self->do_accept();
+    });
+}
 
 int main() {
     try {
-        // Hard-coded IP address and port
-        const string ip_address = "0.0.0.0";  // Use "0.0.0.0" to listen on all interfaces
-        const unsigned short port = 8080;
-        cout << "Starting Server..." << endl;
+        // IP address and ports
+        const std::string ip_address = "0.0.0.0";  // Listen on all interfaces
+        const unsigned short frames_port = 8080;
+        const unsigned short coords_port = 8081;
+        std::cout << "Starting Server..." << std::endl;
 
         boost::asio::io_context ioc{1};
 
-        boost::asio::ip::tcp::endpoint endpoint{boost::asio::ip::make_address(ip_address), port};
+        boost::asio::ip::tcp::endpoint frames_endpoint{boost::asio::ip::make_address(ip_address), frames_port};
+        boost::asio::ip::tcp::endpoint coords_endpoint{boost::asio::ip::make_address(ip_address), coords_port};
 
         session_manager manager;
 
-        auto listener_ptr = make_shared<listener>(ioc, endpoint, manager);
+        auto listener_frames = std::make_shared<listener>(ioc, frames_endpoint, manager, SessionType::Frames);
+        auto listener_coords = std::make_shared<listener>(ioc, coords_endpoint, manager, SessionType::Coordinates);
 
-        listener_ptr->do_accept();
+        listener_frames->do_accept();
+        listener_coords->do_accept();
 
         ioc.run();
-    } catch (const std::exception &e) {
+    } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }

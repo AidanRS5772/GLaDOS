@@ -146,6 +146,7 @@ async def send_frames():
 
                 # Send the frame data
                 await websocket_frames.send(frame_data)
+                print("Frame sent")
 
     except Exception as e:
         print(f"An error occurred in send_frames: {e}")
