@@ -26,6 +26,7 @@ kernel_S = np.ones((S_KERNAL_SZ, S_KERNAL_SZ), np.uint8)
 kernel_L = np.ones((L_KERNAL_SZ, L_KERNAL_SZ), np.uint8)
 
 # Shared variables
+global shared_frame;
 shared_frame = None
 frame_lock = asyncio.Lock()
 frame_available_event = asyncio.Event()
@@ -110,7 +111,9 @@ async def motion_detection():
                 await asyncio.sleep(0.01)  # Adjust as needed
 
     except Exception as e:
+        import traceback
         print(f"An error occurred in motion_detection: {e}")
+        traceback.print_exc()
         stop_event.set()
 
 async def send_frames():
@@ -149,9 +152,10 @@ async def send_frames():
                 print("Frame sent")
 
     except Exception as e:
+        import traceback
         print(f"An error occurred in send_frames: {e}")
+        traceback.print_exc()
         stop_event.set()
-
 async def main():
     await asyncio.gather(
         check_for_shutdown(),
