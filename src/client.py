@@ -144,7 +144,7 @@ async def send_frames():
                 frame_to_send = cv2.cvtColor(frame_to_send, cv2.COLOR_BGR2RGB)
 
                 # Set JPEG compression parameters
-                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 90]  # Adjust quality as needed
+                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 100]  # Adjust quality as needed
 
                 # Encode frame to JPEG with compression parameters
                 ret, buffer = cv2.imencode('.jpg', frame_to_send, encode_param)
