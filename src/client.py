@@ -86,7 +86,7 @@ async def motion_detection():
         # Initialize camera
         from picamera2 import Picamera2
         picam2 = Picamera2()
-        config = picam2.create_preview_configuration(main={"size": (1296, 972)})
+        config = picam2.create_preview_configuration(main={"size": (2592//2, 1944//2)})
         picam2.configure(config)
         picam2.start()
 
@@ -144,7 +144,7 @@ async def send_frames():
                 frame_to_send = cv2.cvtColor(frame_to_send, cv2.COLOR_BGR2RGB)
 
                 # Set JPEG compression parameters
-                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 80]  # Adjust quality as needed
+                encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 100]  # Adjust quality as needed
 
                 # Encode frame to JPEG with compression parameters
                 ret, buffer = cv2.imencode('.jpg', frame_to_send, encode_param)
