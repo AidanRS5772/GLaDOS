@@ -120,7 +120,7 @@ void session::on_read(boost::beast::error_code ec, std::size_t bytes_transferred
                 cv::imwrite("../../../src/test_imgs/" + filename.str(), frame_);
 
                 // Simulate blocking operation
-                std::this_thread::sleep_for(std::chrono::milliseconds(5000));
+                std::this_thread::sleep_for(std::chrono::milliseconds(10000));
 
                 // Send ACK to client
                 send_ack_signal();
@@ -309,7 +309,7 @@ int main() {
         for (auto& t : threads) {
             t.join();
         }
-        
+
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return EXIT_FAILURE;
