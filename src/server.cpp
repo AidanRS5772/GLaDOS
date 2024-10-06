@@ -1,14 +1,14 @@
 #include <boost/asio.hpp>
 #include <boost/beast/core.hpp>
-#include <boost/beast/websocket.hpp>
 #include <boost/beast/version.hpp>
+#include <boost/beast/websocket.hpp>
 #include <boost/uuid/uuid.hpp>
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
-#include <opencv2/opencv.hpp>
 #include <iostream>
 #include <memory>
 #include <mutex>
+#include <opencv2/opencv.hpp>
 #include <thread>
 #include <unordered_map>
 
@@ -26,7 +26,7 @@ class session : public std::enable_shared_from_this<session> {
 
     cv::Mat frame_;
 
-public:
+   public:
     session(boost::asio::ip::tcp::socket socket, SessionType session_type)
         : ws_(std::move(socket)),
           session_type_(session_type) {
@@ -61,7 +61,7 @@ public:
 
     std::string get_client_id() const { return client_id_; }
 
-private:
+   private:
     void on_accept(boost::beast::error_code ec);
     void do_read();
     void on_read(boost::beast::error_code ec, std::size_t bytes_transferred);
@@ -218,7 +218,7 @@ class listener : public std::enable_shared_from_this<listener> {
     boost::asio::ip::tcp::acceptor acceptor_;
     SessionType session_type_;
 
-public:
+   public:
     listener(boost::asio::io_context& ioc, boost::asio::ip::tcp::endpoint endpoint, SessionType session_type)
         : acceptor_(ioc), session_type_(session_type) {
         boost::beast::error_code ec;
