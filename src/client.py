@@ -5,6 +5,7 @@ import sys
 import platform
 import numpy as np
 import struct  # For packing data into bytes
+from picamera2 import Picamera2
 
 # If running on Windows, import msvcrt
 if platform.system() == "Windows":
@@ -84,9 +85,8 @@ async def check_for_shutdown():
 async def motion_detection():
     try:
         # Initialize camera
-        from picamera2 import Picamera2
         picam2 = Picamera2()
-        config = picam2.create_preview_configuration(main={"size": (2592, 1944)})
+        config = picam2.create_preview_configuration()
         picam2.configure(config)
         picam2.start()
 
