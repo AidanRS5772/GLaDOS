@@ -23,7 +23,7 @@ def find_motion(frame):
     clean_fg_mask = cv2.morphologyEx(clean_fg_mask, cv2.MORPH_OPEN, S_KERNAL)
     clean_fg_mask = cv2.morphologyEx(clean_fg_mask, cv2.MORPH_CLOSE, L_KERNAL)
 
-    contours, _ = cv2.findCntours(clean_fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(clean_fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     if contours:
         max_countour = max(contours , key = lambda c: cv2.boundingRect(c)[2] * cv2.boundingRect(c)[3])
