@@ -75,12 +75,13 @@ class WebSocketSession : public std::enable_shared_from_this<WebSocketSession> {
 
     void handle_cords() {
         if (buffer_.size() >= 8) {
-            int int1, int2;
+            int32_t int1, int2;
             const char* data = static_cast<const char*>(buffer_.data().data());
-            std::memcpy(&int1, data, sizeof(int));
-            std::memcpy(&int2, data + sizeof(int), sizeof(int));
 
-            std::cout << "Received Coordinates: (" << int1 << ", " << int2 << ")" << std::endl;
+            int1 = ntohl(*reinterpret_cast<const uint32_t*>(data));
+            int2 = ntohl(*reinterpret_cast<const uint32_t*>(data + sizeof(int32_t)));
+
+            std::cout << "Received Coordinates: (" << int1 << " , " << int2 << ")" << std::endl;
 
             buffer_.consume(8);
 

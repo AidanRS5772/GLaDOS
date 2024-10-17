@@ -44,7 +44,7 @@ async def send_cordinates(ws, x, y):
     tag = "CORD".ljust(4, ' ')
     cord_data = struct.pack("!ii", x, y)
     await send_data(ws, tag, cord_data)
-    print("Sent Cord")
+    print(f"Sent Cord: ({x} , {y})")
 
 async def main():
     async with websockets.connect("ws://10.0.0.232:8080") as ws:
