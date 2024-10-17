@@ -97,8 +97,6 @@ class WebSocketSession : public std::enable_shared_from_this<WebSocketSession> {
             [self = shared_from_this(), message](beast::error_code ec, std::size_t bytes_transferred) {
                 if (ec) {
                     std::cerr << "Error sending message: " << ec.message() << std::endl;
-                } else {
-                    std::cout << "Sent message: '" << message << "' (" << bytes_transferred << " bytes)" << std::endl;
                 }
             });
     }
