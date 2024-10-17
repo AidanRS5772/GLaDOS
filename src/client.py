@@ -37,7 +37,7 @@ def find_motion(frame):
 
     return None
 
-async def send_message(websocket, tag, data):
+async def send_data(websocket, tag, data):
     await websocket.send(tag.encode() + data)
 
 async def send_cordinates(ws, x, y):
