@@ -36,8 +36,6 @@ class Session : public std::enable_shared_from_this<Session> {
             [self = shared_from_this(), size](beast::error_code ec, std::size_t bytes_transferred) {
                 if (ec) {
                     std::cerr << "Error sending raw data: " << ec.message() << std::endl;
-                } else {
-                    std::cout << "Sent " << bytes_transferred << " bytes." << std::endl;
                 }
             });
     }
@@ -114,19 +112,19 @@ class Pair {
         if (type == 1) {
             if (!primary_) {
                 primary_ = std::move(sess);
-                std::cout << "Primary session added to pair.\n";
+                std::cout << "Primary session added to pair." << std::endl;
             } else {
-                std::cerr << "This Pair already has a primary session.\n";
+                std::cerr << "This Pair already has a primary session." << std::endl;
             }
         } else if (type == 2) {
             if (!secondary_) {
                 secondary_ = std::move(sess);
-                std::cout << "Secondary session added to pair.\n";
+                std::cout << "Secondary session added to pair." << std::endl;
             } else {
-                std::cerr << "This Pair already has a secondary session.\n";
+                std::cerr << "This Pair already has a secondary session." << std::endl;
             }
         } else {
-            std::cerr << "Invalid session type, expected 1 or 2.\n";
+            std::cerr << "Invalid session type, expected 1 or 2." << std::endl;
         }
     }
 
@@ -209,12 +207,10 @@ void Session::on_accept(beast::error_code ec) {
 
     std::cout << "Input pair name: ";
     std::cin >> pair_name_;
-    std::cout << std::endl;
 
     int type;
     std::cout << "Input type of session (1 for primary, 2 for secondary): ";
     std::cin >> type;
-    std::cout << std::endl;
 
     server_->add_session(shared_from_this(), pair_name_, type);
 

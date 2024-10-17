@@ -63,7 +63,7 @@ async def main():
                     send_cord = False
             
             message = await ws.recv()
-            tag = message[:4].decode()
+            tag = message[:4]
 
             if tag == "CACK":
                 send_cord = True
