@@ -44,7 +44,6 @@ async def send_cordinates(ws, x, y):
     tag = "CORD".ljust(4, ' ')
     cord_data = struct.pack("!ii", x, y)
     await send_data(ws, tag, cord_data)
-    print(f"Sent Cord: ({x} , {y})")
 
 async def main():
     async with websockets.connect("ws://10.0.0.232:8080") as ws:
@@ -63,11 +62,17 @@ async def main():
                     await send_cordinates(ws, x, y)
                     send_cord = False
             
-            server_signal = await ws.recv()
-            if server_signal == "CORD":
+            message = await ws.recv()
+            tag = message[:4].decode()
+
+            if tag == "CACK":
                 send_cord = True
+            elif tag == "CORD":
+                x, y, z = struct.unpack("!fff", message[4:4+3*4])
+                print(f"Received cordinates: ({x}, {y}, {z})")
             else:
-                continue
+                print(f"Unknown tag received: {tag}")
+            
 
 
 # Run the main function
