@@ -40,7 +40,7 @@ def find_motion(frame):
 async def send_message(websocket, tag, data):
     await websocket.send(tag.encode() + data)
 
-async def send_cord(ws, x, y):
+async def send_cordinates(ws, x, y):
     tag = "CORD".ljust(4, ' ')
     cord_data = struct.pack("!ii", x, y)
     await send_data(ws, tag, cord_data)
@@ -60,7 +60,7 @@ async def main():
                 motion_cord = find_motion(frame)
                 if motion_cord:
                     x , y = motion_cord
-                    await send_cord(ws, x, y)
+                    await send_cordinates(ws, x, y)
                     send_cord = False
             
             server_signal = await ws.recv()
