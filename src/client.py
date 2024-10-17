@@ -46,7 +46,7 @@ async def send_cord(ws, motion_cord):
     await send_data(ws, tag, cord_data)
 
 async def main():
-    async with websockets.connect("ws://10.0.0.232:8080") as ws:
+    async with websockets.connect("ws://10.0.0.231:8080") as ws:
         cam = Picamera2()
         cam.configure(cam.create_still_configuration())
         cam.start()
