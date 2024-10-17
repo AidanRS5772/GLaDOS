@@ -13,8 +13,8 @@ POST_THRESH = 50
 AREA_THRESH = 5000
 
 KNN = cv2.createBackgroundSubtractorKNN(history = FRAME_HIST, dist2Threshold = PRE_THRESH)
-S_KERNAL = np.ones((S_KERNAL_SZ, S_KERNAL_SZ), np.uni)
-L_KERNAL = np.ones((L_KERNAL_SZ, L_KERNAL_SZ), np.uni)
+S_KERNAL = np.ones((S_KERNAL_SZ, S_KERNAL_SZ), np.uint8)
+L_KERNAL = np.ones((L_KERNAL_SZ, L_KERNAL_SZ), np.uint8)
 
 def find_motion(frame):
     fg_mask = KNN.apply(frame)
