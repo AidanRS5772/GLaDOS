@@ -54,10 +54,9 @@ class WebSocketSession : public std::enable_shared_from_this<WebSocketSession> {
 
         std::string tag;
         if (buffer_.size() >= 4) {
-            // Assuming the first 4 bytes represent the tag (could be more or less)
             auto data = static_cast<const char*>(buffer_.data().data());
             tag = std::string(data, 4);
-            buffer_.consume(4);  // Consume the tag part
+            buffer_.consume(4);
         } else {
             std::cerr << "Received message without a valid tag" << std::endl;
             buffer_.consume(buffer_.size());
@@ -66,11 +65,28 @@ class WebSocketSession : public std::enable_shared_from_this<WebSocketSession> {
         }
 
         if (tag == "CORD") {
+            handle_cords();
         } else {
             std::cerr << "Unknown tag: " << tag << std::endl;
         }
 
         do_read();
+    }
+
+    void handle_cords() {
+        if (buffer_.size() >= 8) {
+            int int1, int2;
+            const char* data = static_cast<const char*>(buffer_.data().data());
+            std::memcpy(&int1, data, sizeof(int));
+            std::memcpy(&int2, data + sizeof(int), sizeof(int));
+
+            std::cout << "Received Coordinates: (" << int1 << ", " << int2 << ")" << std::endl;
+
+            buffer_.consume(8);
+        } else {
+            std::cerr << "Not enough data for coordinates (expected 8 bytes)" << std::endl;
+            buffer_.consume(buffer_.size());
+        }
     }
 
     void do_write(const std::string& message) {
@@ -92,11 +108,10 @@ class WebSocketSession : public std::enable_shared_from_this<WebSocketSession> {
 
 class WebSocketServer {
     tcp::acceptor acceptor_;
-    tcp::socket socket_;
 
    public:
     WebSocketServer(net::io_context& ioc, tcp::endpoint endpoint)
-        : acceptor_(ioc), socket_(ioc) {
+        : acceptor_(ioc) {
         acceptor_.open(endpoint.protocol());
         acceptor_.set_option(net::socket_base::reuse_address(true));
         acceptor_.bind(endpoint);
@@ -108,10 +123,11 @@ class WebSocketServer {
    private:
     void do_accept() {
         acceptor_.async_accept(
-            socket_,
-            [this](beast::error_code ec) {
+            [this](beast::error_code ec, tcp::socket socket) {
                 if (!ec) {
-                    std::make_shared<WebSocketSession>(std::move(socket_))->start();
+                    std::make_shared<WebSocketSession>(std::move(socket))->start();
+                } else {
+                    std::cerr << "Error accepting connection: " << ec.message() << std::endl;
                 }
                 do_accept();
             });
@@ -124,18 +140,23 @@ int main() {
         auto const address = net::ip::make_address("0.0.0.0");
         auto const port = static_cast<unsigned short>(std::atoi("8080"));
 
-        net::io_context ioc{1};
+        net::io_context ioc{std::thread::hardware_concurrency()};
 
-        // Create and run the WebSocket server
-        tcp::endpoint endpoint{address, port};
-        std::make_shared<WebSocketServer>(ioc, endpoint);
+        auto server = std::make_shared<WebSocketServer>(ioc, tcp::endpoint{address, port});
 
-        // Run the I/O context to start the event loop
-        ioc.run();
+        // Run the I/O context in multiple threads
+        std::vector<std::thread> threads;
+        for (std::size_t i = 0; i < std::thread::hardware_concurrency(); ++i) {
+            threads.emplace_back([&ioc] { ioc.run(); });
+        }
+
+        for (auto& t : threads) {
+            t.join();
+        }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return EXIT_FAILURE;
     }
 
-    return EXIT_SUCCESS;
+    return 0;
 }
