@@ -83,26 +83,24 @@ class WebSocketSession : public std::enable_shared_from_this<WebSocketSession> {
             std::cout << "Received Coordinates: (" << int1 << ", " << int2 << ")" << std::endl;
 
             buffer_.consume(8);
+
+            send_message("CORD");
         } else {
             std::cerr << "Not enough data for coordinates (expected 8 bytes)" << std::endl;
             buffer_.consume(buffer_.size());
         }
     }
 
-    void do_write(const std::string& message) {
+    void send_message(const std::string& message) {
         ws_.async_write(
             net::buffer(message),
-            beast::bind_front_handler(
-                &WebSocketSession::on_write,
-                shared_from_this()));
-    }
-
-    void on_write(beast::error_code ec, std::size_t bytes_transferred) {
-        if (ec) {
-            std::cerr << "Error during WebSocket write: " << ec.message() << std::endl;
-        }
-
-        do_read();
+            [self = shared_from_this(), message](beast::error_code ec, std::size_t bytes_transferred) {
+                if (ec) {
+                    std::cerr << "Error sending message: " << ec.message() << std::endl;
+                } else {
+                    std::cout << "Sent message: '" << message << "' (" << bytes_transferred << " bytes)" << std::endl;
+                }
+            });
     }
 };
 

@@ -44,6 +44,7 @@ async def send_cord(ws, x, y):
     tag = "CORD".ljust(4, ' ')
     cord_data = struct.pack("!ii", x, y)
     await send_data(ws, tag, cord_data)
+    print("Sent Cord")
 
 async def main():
     async with websockets.connect("ws://10.0.0.232:8080") as ws:
@@ -51,7 +52,7 @@ async def main():
         cam.configure(cam.create_still_configuration())
         cam.start()
 
-        send_cord = False
+        send_cord = True
 
         while True:
             if send_cord:
