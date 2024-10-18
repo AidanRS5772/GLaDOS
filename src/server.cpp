@@ -3,11 +3,16 @@
 #include <boost/beast/core.hpp>
 #include <boost/beast/version.hpp>
 #include <boost/beast/websocket.hpp>
+#include <cmath>
 #include <iostream>
 #include <memory>
+#include <opencv2/calib3d.hpp>
 #include <optional>
 #include <string>
 #include <unordered_map>
+#include <vector>
+
+#include "rapidcsv.h"
 
 namespace beast = boost::beast;
 namespace websocket = beast::websocket;
@@ -103,8 +108,25 @@ class Pair {
     std::shared_ptr<Session> primary_, secondary_;
     std::optional<std::array<int, 2>> primary_cord_, secondary_cord_;
 
+    cv::Mat C1, C2;
+
+    const float lsr_angl = M_PI / 4;
+    const float tol = 16.0;
+
    public:
-    Pair() : primary_(nullptr), secondary_(nullptr) {}
+    Pair() : primary_(nullptr), secondary_(nullptr) {
+        rapidcsv::Document doc("../../../src/calibrations.csv");
+
+        std::vector<float> combined;
+        std::vector<std::string> columns = {"col1", "col2", "col3", "col4"};
+        for (const auto& col : columns) {
+            const auto& colData = doc.GetColumn<float>(col);
+            combined.insert(combined.end(), colData.begin(), colData.end());
+        }
+
+        C1 = cv::Mat(combined).rowRange(0, 12).reshape(1, 3);
+        C2 = cv::Mat(combined).rowRange(12, 24).reshape(1, 3);
+    }
 
     void add_session(std::shared_ptr<Session> sess, int type) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -144,20 +166,60 @@ class Pair {
         }
 
         if (primary_cord_.has_value() && secondary_cord_.has_value()) {
-            std::array<float, 3> comb_cord = {1.5f, 1.5f, 1.5f};
-            std::vector<char> buffer(4 + sizeof(float) * 3);
+            std::optional<std::array<float, 2>> opt_servo_cords = find_servo_cords(primary_cord_.value(), secondary_cord_.value());
+            if (opt_servo_cords.has_value()) {
+                std::array<float, 2> servo_cords = opt_servo_cords.value();
+                std::vector<char> buffer(4 + sizeof(float) * 2);
 
-            std::string tag = "CORD";
-            std::memcpy(buffer.data(), tag.data(), 4);
+                std::string tag = "CORD";
+                std::memcpy(buffer.data(), tag.data(), 4);
 
-            std::memcpy(buffer.data() + 4, &comb_cord[0], sizeof(float));
-            std::memcpy(buffer.data() + 4 + sizeof(float), &comb_cord[1], sizeof(float));
-            std::memcpy(buffer.data() + 4 + 2 * sizeof(float), &comb_cord[2], sizeof(float));
+                std::memcpy(buffer.data() + 4, &servo_cords[0], sizeof(float));
+                std::memcpy(buffer.data() + 4 + sizeof(float), &servo_cords[1], sizeof(float));
 
-            primary_->send_raw_data(buffer.data(), buffer.size());
+                primary_->send_raw_data(buffer.data(), buffer.size());
+            }
 
             primary_cord_.reset();
             secondary_cord_.reset();
+        }
+    }
+
+   private:
+    std::optional<std::array<float, 2>> find_servo_cords(std::array<int, 2> p1, std::array<int, 2> p2) {
+        cv::Point2f point1(static_cast<float>(p1[0]), static_cast<float>(p1[1]));
+        cv::Point2f point2(static_cast<float>(p2[0]), static_cast<float>(p2[1]));
+
+        cv::Mat points4D;
+        std::vector<cv::Point2f> points1 = {point1};
+        std::vector<cv::Point2f> points2 = {point2};
+        cv::triangulatePoints(C1, C2, points1, points2, points4D);
+
+        points4D /= points4D.at<float>(3, 0);
+        cv::Point3f point3d(points4D.at<float>(0, 0), points4D.at<float>(1, 0), points4D.at<float>(2, 0));
+
+        cv::Mat reprojected1 = C1 * points4D;
+        cv::Mat reprojected2 = C2 * points4D;
+
+        reprojected1 /= reprojected1.at<float>(2, 0);
+        reprojected2 /= reprojected2.at<float>(2, 0);
+
+        cv::Point2f reprojectedPt1(reprojected1.at<float>(0, 0), reprojected1.at<float>(1, 0));
+        cv::Point2f reprojectedPt2(reprojected2.at<float>(0, 0), reprojected2.at<float>(1, 0));
+
+        float err1 = cv::norm(reprojectedPt1 - point1);
+        float err2 = cv::norm(reprojectedPt2 - point2);
+
+        if (err1 < tol && err2 < tol) {
+            point3d /= cv::norm(point3d);
+            float x_norm = std::sqrt(1 - point3d.x * point3d.x);
+
+            // Correct way to return an optional array
+            return std::make_optional<std::array<float, 2>>(
+                {std::asin(point3d.x / std::cos(lsr_angl)),
+                 std::asin(point3d.y / x_norm) + std::acos(std::sin(lsr_angl) / x_norm)});
+        } else {
+            return std::nullopt;
         }
     }
 };

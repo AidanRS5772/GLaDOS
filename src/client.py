@@ -68,8 +68,8 @@ async def main():
             if tag == "CACK":
                 send_cord = True
             elif tag == "CORD":
-                x, y, z = struct.unpack("!fff", message[4:4+3*4])
-                print(f"Received cordinates: ({x}, {y}, {z})")
+                x, y = struct.unpack("!ff", message[4:4+2*4])
+                print(f"Received cordinates: ({x}, {y})")
             else:
                 print(f"Unknown tag received: {tag}")
             
