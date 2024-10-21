@@ -40,6 +40,11 @@ def find_motion(frame):
 async def send_data(websocket, tag, data):
     await websocket.send(tag.encode() + data)
 
+async def send_frame(ws, frame):
+    res, img = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPG_QUALITY), 85])
+    if res:
+        await send_data(ws, "FRAM", img.tobytes())
+
 async def send_cordinates(ws, x, y):
     tag = "CORD".ljust(4, ' ')
     cord_data = struct.pack("!ii", x, y)
@@ -52,6 +57,7 @@ async def main():
         cam.start()
 
         send_cord = True
+        send_frame = True
 
         while True:
             if send_cord:
@@ -61,6 +67,8 @@ async def main():
                     x , y = motion_cord
                     await send_cordinates(ws, x, y)
                     send_cord = False
+                    if send_frame:
+                        await send_frame(ws, frame)
             
             message = await ws.recv()
             tag = message[:4]
@@ -68,8 +76,8 @@ async def main():
             if tag == "CACK":
                 send_cord = True
             elif tag == "CORD":
-                x, y = struct.unpack("!ff", message[4:4+2*4])
-                print(f"Received cordinates: ({x}, {y})")
+                theta, phi = struct.unpack("!ff", message[4:4+2*4])
+                print(f"Received cordinates: ({theta}, {phi})")
             else:
                 print(f"Unknown tag received: {tag}")
             

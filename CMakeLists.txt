@@ -22,6 +22,8 @@ target_link_libraries(server Eigen3::Eigen)
 target_link_libraries(server rapidcsv::rapidcsv)
 target_link_libraries(server boost::boost)
 target_link_libraries(server ${OpenCV_LIBS})
+target_link_libraries(server nlohmann_json::nlohmann_json)
+target_link_libraries(server dlib::dlib)
 
 # Second executable from gen_facial_recog_data.cpp
 add_executable(gen_facial_recog_data src/gen_facial_recog_data.cpp)
