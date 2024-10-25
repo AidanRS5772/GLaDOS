@@ -38,15 +38,17 @@ def find_motion(frame):
     return None
 
 async def send_data(websocket, tag, data):
-    await websocket.send(tag.encode() + data)
+    if len(tag) != 4:
+        raise ValueError("Tag must be exactly 4 characters.")
 
-async def send_frame(ws, frame):
-    res, img = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPG_QUALITY), 85])
-    if res:
-        await send_data(ws, "FRAM", img.tobytes())
+    tag_bytes = tag.encode('utf-8')
+    length = len(data)
+    length_bytes = struct.pack('!I', length)
+    message = tag_bytes + length_bytes + data
+    await websocket.send(message)
 
 async def send_cordinates(ws, x, y):
-    tag = "CORD".ljust(4, ' ')
+    tag = "CORD"
     cord_data = struct.pack("!ii", x, y)
     await send_data(ws, tag, cord_data)
 
@@ -57,7 +59,6 @@ async def main():
         cam.start()
 
         send_cord = True
-        send_frame = True
 
         while True:
             if send_cord:
@@ -67,15 +68,13 @@ async def main():
                     x , y = motion_cord
                     await send_cordinates(ws, x, y)
                     send_cord = False
-                    if send_frame:
-                        await send_frame(ws, frame)
             
             message = await ws.recv()
             tag = message[:4]
 
-            if tag == "CACK":
+            if tag == "CORD":
                 send_cord = True
-            elif tag == "CORD":
+            elif tag == "LSRC":
                 theta, phi = struct.unpack("!ff", message[4:4+2*4])
                 print(f"Received cordinates: ({theta}, {phi})")
             else:
