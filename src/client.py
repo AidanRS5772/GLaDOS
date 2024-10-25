@@ -12,9 +12,10 @@ S_KERNAL_SZ = 3
 POST_THRESH = 50
 AREA_THRESH = 5000
 
-KNN = cv2.createBackgroundSubtractorKNN(history = FRAME_HIST, dist2Threshold = PRE_THRESH)
+KNN = cv2.createBackgroundSubtractorKNN(history=FRAME_HIST, dist2Threshold=PRE_THRESH)
 S_KERNAL = np.ones((S_KERNAL_SZ, S_KERNAL_SZ), np.uint8)
 L_KERNAL = np.ones((L_KERNAL_SZ, L_KERNAL_SZ), np.uint8)
+
 
 def find_motion(frame):
     fg_mask = KNN.apply(frame)
@@ -23,11 +24,15 @@ def find_motion(frame):
     clean_fg_mask = cv2.morphologyEx(clean_fg_mask, cv2.MORPH_OPEN, S_KERNAL)
     clean_fg_mask = cv2.morphologyEx(clean_fg_mask, cv2.MORPH_CLOSE, L_KERNAL)
 
-    contours, _ = cv2.findContours(clean_fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    contours, _ = cv2.findContours(
+        clean_fg_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+    )
 
     if contours:
-        max_countour = max(contours , key = lambda c: cv2.boundingRect(c)[2] * cv2.boundingRect(c)[3])
-        x , y, w, h = cv2.boundingRect(max_countour)
+        max_countour = max(
+            contours, key=lambda c: cv2.boundingRect(c)[2] * cv2.boundingRect(c)[3]
+        )
+        x, y, w, h = cv2.boundingRect(max_countour)
         max_area = w * h
 
         if max_area > AREA_THRESH:
@@ -37,20 +42,23 @@ def find_motion(frame):
 
     return None
 
+
 async def send_data(websocket, tag, data):
     if len(tag) != 4:
         raise ValueError("Tag must be exactly 4 characters.")
 
-    tag_bytes = tag.encode('utf-8')
+    tag_bytes = tag.encode("utf-8")
     length = len(data)
-    length_bytes = struct.pack('!I', length)
+    length_bytes = struct.pack("!I", length)
     message = tag_bytes + length_bytes + data
     await websocket.send(message)
+
 
 async def send_cordinates(ws, x, y):
     tag = "CORD"
     cord_data = struct.pack("!ii", x, y)
     await send_data(ws, tag, cord_data)
+
 
 async def main():
     async with websockets.connect("ws://10.0.0.231:8080") as ws:
@@ -65,21 +73,22 @@ async def main():
                 frame = cam.capture_array()
                 motion_cord = find_motion(frame)
                 if motion_cord:
-                    x , y = motion_cord
+                    x, y = motion_cord
                     await send_cordinates(ws, x, y)
                     send_cord = False
-            
+
             message = await ws.recv()
-            tag = message[:4]
+
+
+            tag = message[:4].decode("utf-8")  # Decode the tag to a string
 
             if tag == "CORD":
                 send_cord = True
             elif tag == "LSRC":
-                theta, phi = struct.unpack("!ff", message[4:4+2*4])
-                print(f"Received cordinates: ({theta}, {phi})")
+                theta, phi = struct.unpack("!ff", message[8 : 8 + 2 * 4])
+                print(f"Received coordinates: ({theta}, {phi})")
             else:
                 print(f"Unknown tag received: {tag}")
-            
 
 
 # Run the main function
