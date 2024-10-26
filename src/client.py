@@ -42,6 +42,11 @@ def find_motion(frame):
 
     return None
 
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Client Configuration')
+    parser.add_argument('client_type', type=int, choices=[1, 2], help='Client type: 1 for primary, 2 for secondary')
+    parser.add_argument('pair_name', type=str, help='Name of the pair')
+    return parser.parse_args()
 
 async def send_data(websocket, tag, data):
     if len(tag) != 4:
@@ -56,12 +61,21 @@ async def send_data(websocket, tag, data):
 
 async def send_cordinates(ws, x, y):
     tag = "CORD"
-    cord_data = struct.pack("!ii", x, y)
+    cord_data = struct.pack("!II", x, y)
     await send_data(ws, tag, cord_data)
 
+async def send_configuration(ws, client_type, pair_name):
+    tag = "CONF"
+    client_type_packed = struct.pack('!I', client_type)  # Unsigned integer
+    pair_name_bytes = pair_name.encode('utf-8')
+    data = client_type_packed + pair_name_bytes
+    await send_data(ws, tag, data)
 
 async def main():
+    args = parse_arguments()
     async with websockets.connect("ws://10.0.0.231:8080") as ws:
+        await send_configuration(ws, args.client_type, args.pair_name)
+
         cam = Picamera2()
         cam.configure(cam.create_still_configuration())
         cam.start()
@@ -85,7 +99,7 @@ async def main():
             if tag == "CORD":
                 send_cord = True
             elif tag == "LSRC":
-                theta, phi = struct.unpack("!ff", message[8 : 8 + 2 * 4])
+                theta, phi = struct.unpack("!ff", message[8 : 16])
                 print(f"Received coordinates: ({theta}, {phi})")
             else:
                 print(f"Unknown tag received: {tag}")
